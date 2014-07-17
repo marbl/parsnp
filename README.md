@@ -38,4 +38,4 @@ once installed:
 
 ## Docs
 
-See harvest.readthedocs.org for full documentation
+See http://harvest.readthedocs.org for full documentation
