@@ -1,0 +1,4 @@
+./bootstrap
+./configure 
+make install
+

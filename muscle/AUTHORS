@@ -1,0 +1,3 @@
+libMUSCLE is an adaptation of Robert C Edgar's MUSCLE 3.7.
+libMUSCLE was written by Aaron Darling <darling@cs.wisc.edu> and Todd J Treangen <treangen@gmail.com>
+It contains bugfixes and new features to the original 3.7 code. 

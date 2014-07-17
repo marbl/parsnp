@@ -1,0 +1,11 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: libMUSCLE 
+Description: The MUSCLE multiple sequence alignment code turned into a library 
+Version: 1.0.0
+Libs: -L${libdir} -lMUSCLE-3.7 
+Cflags: -I${includedir}/libMUSCLE-3.7  
+
