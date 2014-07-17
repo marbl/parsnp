@@ -32,11 +32,10 @@ once installed:
     4) VCF variants: <outdir>/parsnp.vcf
 
 ## Required software:
-
-•	Python 2.5+ (should be standard part of most OSes by now)
-•	PhiPack (included in distribution)
-•	FastTree2 (included in distribution)
+* Python 2.5+ (should be standard part of most OSes by now)
+* PhiPack (included in distribution)
+* FastTree2 (included in distribution)
 
 ## Docs
 
-See harvest.readthedocs.org for full documentation
+See http://harvest.readthedocs.org for full documentation
