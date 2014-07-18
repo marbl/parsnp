@@ -705,7 +705,7 @@ if __name__ == "__main__":
                     if len(data) < 10:
                           sys.stderr.write( "ERROR: Genbank file %s contains no sequence data\n"%(genbank_file))
                           sys.exit(1)
-                    genbank_ref1.write(data)
+                    genbank_ref1.write(data.upper())
                     genbank_ref1.close()
                 except IOError:
                     sys.stderr.write( "ERROR: Genbank file %s not found\n"%(genbank_file))
