@@ -2,6 +2,13 @@
 
 Rapid bacterial core genome alignment and SNP detection
 
+## Required for building:
+
+* Linux/*nix or OSX (10.7 or newer)
+* gcc
+* OpenMP
+* Python 2.5+ 
+
 ## Build
 
 For your convenience, precompiled binaries provides at:
@@ -10,8 +17,8 @@ For your convenience, precompiled binaries provides at:
 
 otherwise, to install from source:
 
-    git clone https://github.com/marbl/parsnp.git parsnp
-    cd parsnp
+    git clone https://github.com/marbl/parsnp.git parsnp_src
+    cd parsnp_src
     
 build libMUSCLE:
 
@@ -20,14 +27,14 @@ build libMUSCLE:
     ./configure --prefix=`pwd`
     make install
 
-build parsnp:
+build Parsnp:
 
     cd ..
-    ./bootstrap.sh
+    ./autogen.sh
     ./configure
     make install
 
-once both installed:
+once both installed (cwd install by default):
 
     export PARSNPDIR=/path/to/parsnp/install
 
@@ -42,8 +49,9 @@ once both installed:
     3) Gingr input: <outdir>/parsnp.ggr
     4) VCF variants: <outdir>/parsnp.vcf
 
-## Required software:
-* Python 2.5+ (should be standard part of most OSes by now)
+## External software dependencies:
+
+* Muscle 3.8 (included as lib)
 * PhiPack (included in distribution)
 * FastTree2 (included in distribution)
 
