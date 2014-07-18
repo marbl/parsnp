@@ -1068,12 +1068,12 @@ if __name__ == "__main__":
     if use_parsnp_mumi and not curated:
         sys.stderr.write( "-->Calculating MUMi..\n")
         if not inifile_exists:
-            command = "%s/parsnpA %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
+            command = "%s/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
         else:
             if not os.path.exists(inifile):
                 sys.stderr.write( "Error: ini file %s does not exist!\n"%(inifile))
                 sys.exit(1)
-            command = "%s/parsnpA %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
+            command = "%s/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
         run_command(command)
         try:
             mumif = open(outputDir+os.sep+"all.mumi",'r')
@@ -1330,14 +1330,14 @@ if __name__ == "__main__":
                 if command == "" and xtrafast and 0:
                     command = "%s/parsnpA_fast %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
                 elif command == "":
-                    command = "%s/parsnpA %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
+                    command = "%s/parsnp %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
                 else:
-                    command = "%s/parsnpA %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
+                    command = "%s/parsnp %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
             else:
                 if not os.path.exists(inifile):
                     sys.stderr.write("Error: ini file %s does not exist!\n"%(inifile))
                     sys.exit(1)
-                command = "%s/parsnpA %s"%(PARSNP_DIR,inifile)
+                command = "%s/parsnp %s"%(PARSNP_DIR,inifile)
             run_command(command)
         
 
@@ -1714,7 +1714,7 @@ if __name__ == "__main__":
         if xtrafast or 1:
             if len(genbank_files) > 0:
                 if run_recomb_filter:
-                    os.system("%s/harvest -q -g %s -o "%(PARSNP_DIR,genbank_files_cat)+outputDir+os.sep+"parsnp.rec.ggr -f %s -n "%(ref)+outputDir+os.sep+"parsnp.tree -x "+outputDir+os.sep+"parsnp.xmfa -V "+outputDir+os.sep+"parsnp.vcf -b "+outputDir+os.sep+"parsnp.rec,REC,\"PhiPack\"")
+                    os.system("%s/harvest -q -g %s -o "%(PARSNP_DIR,genbank_files_cat)+outputDir+os.sep+"parsnp.ggr -f %s -n "%(ref)+outputDir+os.sep+"parsnp.tree -x "+outputDir+os.sep+"parsnp.xmfa -V "+outputDir+os.sep+"parsnp.vcf -b "+outputDir+os.sep+"parsnp.rec,REC,\"PhiPack\"")
                     if run_repeat_filter:
                         os.system("%s/harvest -q -b %s,REP,\"SNP within intragenomic repeat > 100bp\" -o %s/parsnp.rep.ggr -i %s/parsnp.ggr"%(PARSNP_DIR,repfile,outputDir,outputDir))
                         os.system("mv %s/parsnp.rep.ggr %s/parsnp.ggr"%(outputDir,outputDir))
