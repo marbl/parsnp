@@ -28,16 +28,16 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include "libMUSCLE/threadstorage.h"
+#include "threadstorage.h"
 
 #define DOUBLE_AFFINE	0
 #define SINGLE_AFFINE	1
 #define PAF				0
 
-#include "libMUSCLE/types.h"
-#include "libMUSCLE/intmath.h"
-#include "libMUSCLE/alpha.h"
-#include "libMUSCLE/params.h"
+#include "types.h"
+#include "intmath.h"
+#include "alpha.h"
+#include "params.h"
 
 #ifndef _WIN32
 #define stricmp strcasecmp

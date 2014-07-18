@@ -2,7 +2,7 @@
 #define SeqVect_h
 
 #include <vector>
-#include "libMUSCLE/seq.h"
+#include "seq.h"
 
 namespace muscle {
 

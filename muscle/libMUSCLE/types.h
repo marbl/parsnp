@@ -94,25 +94,25 @@ enum NODECMP
 	NODECMP_Changed = 2		// no equivalent node in old tree
 	};
 
-// Declare enums using macro hacks (see libMUSCLE/enums.h).
+// Declare enums using macro hacks (see enums.h).
 #define s(t)	enum t { t##_Undefined = 0,
 #define c(t, x)	t##_##x,
 #define e(t)	};
-#include "libMUSCLE/enums.h"
+#include "enums.h"
 
 // Declare conversion function XXXToStr(XXX x)
 // for each enum type XXX.
 #define	s(t)	const char *t##ToStr(t x);
 #define c(t, x)	/* empty */
 #define e(t)	/* empty */
-#include "libMUSCLE/enums.h"
+#include "enums.h"
 
 // Declare conversion function StrToXXX(const char *Str)
 // for each enum type XXX.
 #define	s(t)	t StrTo##t(const char *Str);
 #define c(t, x)	/* empty */
 #define e(t)	/* empty */
-#include "libMUSCLE/enums.h"
+#include "enums.h"
 
 const char *BoolToStr(bool b);
 const char *SecsToStr(unsigned long Secs);

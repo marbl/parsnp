@@ -1,10 +1,10 @@
 #ifndef FastProf2_h
 #define FastProf2_h
 
-#include "libMUSCLE/msa.h"
-#include "libMUSCLE/pwpath.h"
+#include "msa.h"
+#include "pwpath.h"
 #include <math.h>	// for log function
-#include "libMUSCLE/threadstorage.h"
+#include "threadstorage.h"
 
 namespace muscle {
 
