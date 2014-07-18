@@ -1,11 +1,12 @@
 AC_INIT(parsnp,1.0)
 AM_INIT_AUTOMAKE(parsnp,1.0)
 AC_PROG_CC(gcc)
-AC_ARG_WITH(libmuscle, [  --with-libmuscle=<path/to/libmuscle>     libMUSCLE install dir (default: ./muscle)])
+
+AC_ARG_WITH(libmuscle, [  --with-libmuscle=<path/to/libmuscle>     libMUSCLE install dir (default: `pwd`/muscle)])
 
 if test "$with_libmuscle" == ""
 then
-	with_libmuscle=./muscle
+	with_libmuscle=`pwd`/muscle
 fi
 
 AC_LANG(C++)
