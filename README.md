@@ -4,10 +4,10 @@ Rapid bacterial core genome alignment and SNP detection
 
 ## Required for building:
 
-* Linux/*nix or OSX (10.7 or newer)
-* gcc
-* OpenMP
-* Python 2.5+ 
+* 64-bit Linux/*nix or OSX (>= v10.7)
+* autoconf && automake
+* gcc (>= v4.2.*)
+* Python (>= 2.6.*)
 
 ## Build
 
