@@ -593,7 +593,8 @@ if __name__ == "__main__":
     req_params["refgenome"] = 0
     req_params["genomedir"] = 0
     filtreps = True
-    if not os.path.exists("./MUMmer/nucmer"):
+    frozenbinary = True
+    if not frozenbinary and not os.path.exists("./MUMmer/nucmer"):
         filtreps = False   
     repfile = ""
     multifasta = False
@@ -1718,7 +1719,7 @@ if __name__ == "__main__":
                     if run_repeat_filter:
                         os.system("%s/harvest -q -b %s,REP,\"SNP within intragenomic repeat > 100bp\" -o %s/parsnp.rep.ggr -i %s/parsnp.ggr"%(PARSNP_DIR,repfile,outputDir,outputDir))
                         os.system("mv %s/parsnp.rep.ggr %s/parsnp.ggr"%(outputDir,outputDir))
-                if run_repeat_filter:
+                elif run_repeat_filter:
                     os.system("%s/harvest -q -g %s -o "%(PARSNP_DIR,genbank_files_cat)+outputDir+os.sep+"parsnp.rep.ggr -f %s -n "%(ref)+outputDir+os.sep+"parsnp.tree -x "+outputDir+os.sep+"parsnp.xmfa -V "+outputDir+os.sep+"parsnp.vcf -b %s,REP,\"SNP within intragenomic repeat > 100bp\""%(repfile))
 
                     os.system("mv %s/parsnp.rep.ggr %s/parsnp.ggr"%(outputDir,outputDir))
@@ -1730,7 +1731,7 @@ if __name__ == "__main__":
                     if run_repeat_filter:
                         os.system("%s/harvest -q -b %s,REP,\"SNP within intragenomic repeat > 100bp\" -o %s/parsnp.rep.ggr -i %s/parsnp.ggr"%(PARSNP_DIR,repfile,outputDir,outputDir))
                         os.system("mv %s/parsnp.rep.ggr %s/parsnp.ggr"%(outputDir,outputDir))
-                if run_repeat_filter:
+                elif run_repeat_filter:
                     run_command("%s/harvest -q -o "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.ggr -f %s -n "%(ref)+outputDir+os.sep+"parsnp.tree -x "+outputDir+os.sep+"parsnp.xmfa -V "+outputDir+os.sep+"parsnp.vcf -b %s,REP,\"SNP within intragenomic repeats (100bp)\""%(repfile))
                 else:
                     os.system("%s/harvest -q -o "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.ggr -f %s -n "%(ref)+outputDir+os.sep+"parsnp.tree -x "+outputDir+os.sep+"parsnp.xmfa -V "+outputDir+os.sep+"parsnp.vcf")
