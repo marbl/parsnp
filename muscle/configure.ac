@@ -80,7 +80,7 @@ esac],[debug=false])
 AM_CONDITIONAL(DEBUG, test x$debug = xtrue)
 
 dnl Mac OS X won't allow static compilation...
-STATIC_FLAG="-static"
+STATIC_FLAG=""
 if ( test "x$target_vendor" = "xapple") then
         STATIC_FLAG=""
 fi
