@@ -12,11 +12,20 @@ otherwise, to install from source:
 
     git clone https://github.com/marbl/parsnp.git parsnp
     cd parsnp
-    ./bootstrap
+    
+build libMUSCLE:
+    cd muscle
+    ./autogen.sh
+    ./configure --prefix=`pwd`
+    make install
+
+build parsnp:
+    cd ..
+    ./bootstrap.sh
     ./configure
     make install
 
-once installed:
+once both installed:
 
     export PARSNPDIR=/path/to/parsnp/install
 
