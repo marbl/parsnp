@@ -20,21 +20,21 @@ otherwise, to install from source:
     git clone https://github.com/marbl/parsnp.git parsnp_src
     cd parsnp_src
     
-build libMUSCLE:
+First (required!), build libMUSCLE:
 
     cd muscle
     ./autogen.sh
     ./configure --prefix=`pwd`
     make install
 
-build Parsnp:
+Then, build Parsnp:
 
     cd ..
     ./autogen.sh
     ./configure
     make install
 
-once both installed (cwd install by default):
+Once both installed (to cwd install by default):
 
     export PARSNPDIR=/path/to/parsnp/install
 
