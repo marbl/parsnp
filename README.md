@@ -14,12 +14,14 @@ otherwise, to install from source:
     cd parsnp
     
 build libMUSCLE:
+
     cd muscle
     ./autogen.sh
     ./configure --prefix=`pwd`
     make install
 
 build parsnp:
+
     cd ..
     ./bootstrap.sh
     ./configure
