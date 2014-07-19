@@ -1011,14 +1011,7 @@ if __name__ == "__main__":
     #initiate parallelMummer tasks
     tasks = []
     refg = open(ref,'r')
-    #seqf_data = seqf.readlines()
-    if 0:
-        oseqf = open(ref+".single",'w')
-        oseqf.write(refg.readline())
-        for line in refg.xreadlines():
-           if line[0:1] != ">":
-              oseqf.write(line)
-        oseqf.close()
+
     refg.close()
     for file in fnafiles:
         if (file[-3:] == ".fa" or file[-4:] == ".fna" or file[-6:] == ".fasta" or file[-4:] == ".fas" or file[-6:] == ".scafs" or file[-5:] == ".scfs" or file[-8:] == ".contigs" or file[-4:] == ".scf" or file[-4:] == ".ctg" or file[-5:] == ".ctgs") and file not in processed:
@@ -1683,7 +1676,7 @@ if __name__ == "__main__":
             os.system("mv %s/parsnp.rep.ggr %s/parsnp.ggr"%(outputDir,outputDir))
         os.system("%s/harvest -q -i %s/parsnp.ggr -S "%(PARSNP_DIR,outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
         os.system("rm %s/parsnp.ggr"%(outputDir))
-    print "  |->["+OK_GREEN+"OK"+ENDC+"]"
+
     command = "%s/ft -nt -quote -gamma -slow -boot 100 "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
     print "-->Reconstructing core genome phylogeny.."
     run_command(command)
@@ -1844,11 +1837,6 @@ if __name__ == "__main__":
     if os.path.exists(use_gingr):
         #check if available first
         rc = 0
-        if 0 and binary_type == "linux":
-            from subprocess import Popen,PIPE
-            p = Popen(['xset','-q'], stdout=PIPE,stderr=PIPE)
-            p.communicate()
-            rc = p.returncode
         if binary_type == "osx":
             print ">>Launching gingr.."
             os.system("open -n %s --args %s/parsnp.ggr"%(use_gingr,outputDir))
