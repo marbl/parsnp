@@ -621,7 +621,7 @@ if __name__ == "__main__":
                         multifasta = True
                         for seq in refseqs:
                             fastalen = len(seq.split("\n",1)[-1].replace("\n",""))
-                            ref_seqs[currpos+fastalen] = seqnum#seq.split("\n",1)[0]
+                            ref_seqs[currpos+fastalen] = seqnum
                             currpos = currpos+fastalen
                             seqnum+=1
                         
@@ -909,13 +909,16 @@ if __name__ == "__main__":
     if ref == "!":
         ref = random.choice(fnafiles1)
         ref = seqdir+os.sep+ref
-    else:
+    if 1:
         ff = open(ref,'r')
         hdr = ff.readline()
         if hdr[0] == ">":
     
             data = ff.read()
             data = data.replace("\n","")
+            if "-" in data:
+                sys.stderr.write( "ERROR: ref genome sequence %s seems to aligned! remove and restart \n"%(ref))
+                sys.exit(1)
             reflen = len(data)
         ff.close()
     for file in files:
@@ -931,6 +934,10 @@ if __name__ == "__main__":
                 for line in ff.xreadlines():
                     if line[0] != ">":
                         data.append(line.replace("\n",""))
+                        if "-" in line:
+                            sys.stderr.write( "ERROR: genome sequence %s seems to aligned! remove and restart \n"%(file))
+                            sys.exit(1)
+
                         totlen += len(line.replace("\n",""))
 
                 if ref in file or file in ref:
@@ -1018,7 +1025,7 @@ if __name__ == "__main__":
             processed.append(file)
             params = {}
             params["jobID"] = len(tasks)
-            params["ref"] = "%s"%(ref)#+".single")
+            params["ref"] = "%s"%(ref)
             params["query"] = "%s"%(seqdir+os.sep+file+".single")
             params["queryfile"] = file
             params["prefix"] = "%s"%(file+".mummerout")
@@ -1029,7 +1036,7 @@ if __name__ == "__main__":
     
     fnafiles = processed
     fileidx = -1
-    #print len(seqs)
+
     hit_dict = {}
     qry_hit_dict = {}
     hdr_dict = {}
@@ -1037,8 +1044,8 @@ if __name__ == "__main__":
     
     TOTSEQS=len(fnafiles)+1
     seqids_list = []
-    use_mummer_mumi = False#True#False#False
-    use_parsnp_mumi = True#False#True
+    use_mummer_mumi = False
+    use_parsnp_mumi = True
     if not inifile_exists:
         if len(fnafiles) < 1 or ref == "":
             sys.stderr.write( "Parsnp requires 2 or more genomes to run, exiting\n")
@@ -1146,8 +1153,10 @@ if __name__ == "__main__":
 
     if curated:
         for file in fnafiles:
-            finalfiles.append(file)
-            allfiles.append(file)
+            if file not in finalfiles:
+                finalfiles.append(file)
+            if file not in allfiles:
+                allfiles.append(file)
 
     if mumi_only:
         mumi_f.close()
