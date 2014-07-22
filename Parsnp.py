@@ -35,17 +35,15 @@ try:
 except KeyError:
     os.environ["PYTHONPATH"] = PARSNP_DIR+os.pathsep
 
+frozenbinary = True
 application_path = ""
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
 elif __file__:
-    application_path = os.path.dirname(__file__)    
+    application_path = os.path.dirname(__file__)
+    frozenbinary = False
 
-#DONT NEED
-#import gcb_new
-
-
-if 1:
+if frozenbinary:
    utilPath = PARSNP_DIR
    libPath = os.path.abspath(utilPath + os.sep + ".." + os.sep + "lib")
    if os.path.exists(libPath):
@@ -370,20 +368,16 @@ def layoutseq(ref,file,genomesdir,split):
             
     if 1 or not os.path.exists("%s.coords"%(genomesdir+os.sep+prefix)):
         if split:
-            #os.system("./nucmer -p %s -l 25 -c 60 %s %s.split"%(prefix,ref,genomesdir+os.sep+file))
             command = "%s/nucmer -p %s -l 25 -c 60 %s %s.split"%(PARSNP_DIR,prefix,ref,genomesdir+os.sep+file)
             run_command(command)
             
         else:
-            #os.system("./nucmer -p %s -l 25 -c 60 %s %s"%(prefix,ref,genomesdir+os.sep+file))
             command = "%s/nucmer -p %s -l 25 -c 60 %s %s"%(PARSNP_DIR,prefix,ref,genomesdir+os.sep+file)
             run_command(command)
-            #p = subprocess.Popen(command, shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE,close_fds=True,executable="/bin/bash")
         
-        #os.system("./show-coords -T -r -L 100 -I 95 %s.delta > %s.coords"%(prefix,prefix))
         command  = "%s/show-coords -T -r -L 100 -I 95 %s.delta > %s.coords"%(PARSNP_DIR,prefix,prefix)
         run_command(command)
-        #continue                                                                                                                                                                                                                                                                        
+
     of1 = open("%s.coords"%(prefix),'r')
     qryweight = {}
     for line in of1.xreadlines():
@@ -455,17 +449,18 @@ sys.stderr.write( BOLDME+"|--Parsnp v1.0--|\n"+ENDC)
 sys.stderr.write( BOLDME+"For detailed documentation please see --> http://harvest.readthedocs.org/en/latest\n"+ENDC)
 
 
-if not os.path.exists("%s/parsnp"%(PARSNP_DIR)):
+if not os.path.lexists("%s/parsnp"%(PARSNP_DIR)):
     os.system("ln -s %s/bin/parsnp %s/parsnp"%(PARSNP_DIR, PARSNP_DIR))
-if not os.path.exists("%s/harvest"%(PARSNP_DIR)):
+if not os.path.lexists("%s/harvest"%(PARSNP_DIR)):
     os.system("ln -s %s/bin/harvest_%s %s/harvest"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.exists("%s/ft"%(PARSNP_DIR)):
+if not os.path.lexists("%s/ft"%(PARSNP_DIR)):
     os.system("ln -s %s/bin/fasttree_%s %s/ft"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.exists("%s/phiprofile"%(PARSNP_DIR)):
+if not os.path.lexists("%s/phiprofile"%(PARSNP_DIR)):
     os.system("ln -s %s/bin/Profile_%s %s/phiprofile"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.exists("%s/nucmer"%(PARSNP_DIR)):
+
+if not os.path.lexists("%s/nucmer"%(PARSNP_DIR)):
     os.system("ln -s %s/MUMmer/nucmer %s/nucmer"%(PARSNP_DIR,PARSNP_DIR))
-if not os.path.exists("%s/show-coords"%(PARSNP_DIR)):
+if not os.path.lexists("%s/show-coords"%(PARSNP_DIR)):
     os.system("ln -s %s/MUMmer/show-coords %s/show-coords"%(PARSNP_DIR,PARSNP_DIR))
 
 #set MUMmer paths
@@ -593,7 +588,7 @@ if __name__ == "__main__":
     req_params["refgenome"] = 0
     req_params["genomedir"] = 0
     filtreps = True
-    frozenbinary = True
+
     if not frozenbinary and not os.path.exists("./MUMmer/nucmer"):
         filtreps = False   
     repfile = ""
