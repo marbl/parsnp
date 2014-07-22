@@ -20,6 +20,11 @@ otherwise, to install from source:
     git clone https://github.com/marbl/parsnp.git parsnp_src
     cd parsnp_src
     
+Before you start, on OSX llvm-gcc-4.2 is required for OpenMP support:
+
+    gcc -v
+    (if you prefer to use clang, OpenMP will also need to be installed)
+    
 First (required!), build libMUSCLE:
 
     cd muscle
