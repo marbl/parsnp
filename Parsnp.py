@@ -670,6 +670,9 @@ if __name__ == "__main__":
                             giline = rf.readline()
                             if "VERSION" and "GI" in giline:
                                 break
+                            elif giline == None or giline == "":
+                                sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                                sys.exit(1)
                         if len(giline) <= 2:
                             sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
                             sys.exit(1)
@@ -682,6 +685,9 @@ if __name__ == "__main__":
                             giline = rf.readline()
                             if "VERSION" and "GI" in giline:
                                 break
+                            elif giline == None or giline == "":
+                                sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                                sys.exit(1)
                         if len(giline) <= 2:
                             sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
                             sys.exit(1)
