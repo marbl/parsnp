@@ -20,12 +20,20 @@ otherwise, to install from source:
     git clone https://github.com/marbl/parsnp.git parsnp_src
     cd parsnp_src
     
-Before you start, on OSX llvm-gcc-4.2 is required for OpenMP support:
+Before you start, if running OSX Mavericks, OpenMP is not supported via Clang, so you will not be able to build the source. You will need to install OpenMP and build gcc with OpenMP support. This can be accomplished a couple of ways:
 
-    gcc -v
-    (if you prefer to use clang, OpenMP will also need to be installed)
+    1.  Install Macports, then:
+       - sudo port install gcc49
+       - sudo port gcc-select mp-gcc49
+       
+    2.  Install Homebrew, then:
+       -  brew install gcc49
+       
+    3.  Build & install gcc with native OpenMP support
+       - Download & install gcc 4.9
+          - https://gcc.gnu.org/install/
     
-First (required!), build libMUSCLE:
+Once OpenMP support is added, the first (required!) step is to build libMUSCLE:
 
     cd muscle
     ./autogen.sh
