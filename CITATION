@@ -1,0 +1,27 @@
+[Parsnp]
+
+   Treangen TJ, Ondov BD, Koren S, Phillippy AM:
+     Rapid Core-Genome Alignment and Visualization for Thousands of Microbial Genomes.
+     bioRxiv (2014). doi: http://dx.doi.org/10.1101/007351
+
+External software (please also cite if you find Parsnp useful):
+
+   [FastTree2]
+   
+      Price MN, Dehal PS, Arkin AP: 
+        FastTree 2--approximately maximum-likelihood trees for large alignments. 
+        PLoS One 2010, 5:e9490.
+   
+   [Muscle]
+   
+      Edgar RC:
+        MUSCLE: multiple sequence alignment with high accuracy and high throughput. 
+        Nucleic Acids Research 2004, 32:1792-1797.
+   
+   [PhiPack]
+
+      Bruen TC, Philippe H, Bryant D: 
+        A simple and robust statistical test for detecting the presence of recombination. 
+        Genetics 2006, 172:2665-2681.
+    
+    
