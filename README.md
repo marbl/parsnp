@@ -8,13 +8,13 @@ Parsnp is distributed as a precompiled binary that should be devoid of external 
 
 ### On OSX:
 
-  1. wget https://github.com/marbl/parsnp/releases/download/v1.0/parsnp-OSX64.gz
+  1. wget https://github.com/marbl/parsnp/releases/download/v1.0/parsnp-OSX64-v1.0.tar.gz
   2. unzip -d parsnp-OSX64.gz
 
 ### On Linux:
 
 
-  1. wget https://github.com/marbl/parsnp/releases/download/v1.0/parsnp-Linux64.gz
+  1. wget https://github.com/marbl/parsnp/releases/download/v1.0/parsnp-Linux64-v1.0.tar.gz
   2. unzip -d parsnp-Linux64.gz
 
 
