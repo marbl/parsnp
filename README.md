@@ -1,3 +1,6 @@
+![Travis-CI build status]
+(https://travis-ci.org/marbl/parsnp.svg?branch=master)
+
 # Parsnp 
 
 Rapid bacterial core genome alignment and SNP detection
