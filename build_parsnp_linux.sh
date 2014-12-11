@@ -4,5 +4,6 @@ cd muscle
 make install
 cd ..
 ./autogen.sh
-./configure
+export LD_LIBRARY_PATH="/home/travis/build/marbl/parsnp/muscle/lib":$LD_LIBRARY_PATH
+./configure --with-libmuscle=/home/travis/build/marbl/parsnp/muscle 
 make install
