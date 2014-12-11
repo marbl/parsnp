@@ -3,7 +3,7 @@ compiler:
 - gcc
 - clang
 script: 
-- if [ $TRAVIS_OS_NAME == linux ]; then ./build_parsnp_linux.sh; fi
+- ./build_parsnp_linux.sh
 notifications:
   email:
     recipients:
