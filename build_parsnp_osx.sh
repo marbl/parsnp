@@ -1,5 +1,5 @@
-export CC="/usr/local/Cellar/gcc48/4.8.0/bin/gcc"
-export CXX="/usr/local/Cellar/gcc48/4.8.0/bin/g++"
+export CC="/usr/local/Cellar/gcc49/4.9.2/bin/gcc"
+export CXX="/usr/local/Cellar/gcc49/4.9.2/bin/g++"
 cd muscle
 ./autogen.sh
 ./configure --prefix=`pwd`
