@@ -1,7 +1,6 @@
 language: cpp
 compiler: 
 - gcc
-- clang
 script: 
 - ./build_parsnp_linux.sh
 notifications:
