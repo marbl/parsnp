@@ -1,8 +1,14 @@
 language: cpp
 compiler: 
 - gcc
+before_install:
+- if [ $TRAVIS_OS_NAME == osx ]; then brew update; fi
+- if [ $TRAVIS_OS_NAME == osx ]; then brew tap homebrew/versions; fi
+- if [ $TRAVIS_OS_NAME == osx ]; then brew install gcc49; fi
+- if [ $TRAVIS_OS_NAME == osx ]; then brew link --force --overwrite gcc49; fi
 script: 
-- ./build_parsnp_linux.sh
+- if [ $TRAVIS_OS_NAME == linux ]; then ./build_parsnp_linux.sh; fi 
+- if [ $TRAVIS_OS_NAME == osx ]; then ./build_parsnp_osx.sh; fi 
 notifications:
   email:
     recipients:
