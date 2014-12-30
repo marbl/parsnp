@@ -47,6 +47,7 @@
 // See the LICENSE file included with this software for license information.
 
 
+VERSION = "v1.0"
 #include <cstdlib>
 #include <omp.h>
 #include <algorithm>
@@ -2776,42 +2777,71 @@ int main ( int argc, char* argv[] )
     map< string, int> header_to_index;
     vector< map < int, string> > pos_to_header;
 
+    string out1("-");
+    bool version = false;
+    bool help = false;
+    for ( int i = 0; i < argc; i++ )
+      {
+	if ( argv[i][0] == '-' )
+	  {
+	    switch ( argv[i][1] )
+	      {
+	      case 'h': help = true; break;
+	      case 'v': version = true; break;
+
+	      }
+	  }
+      }
+
+    if (help )
+      {
+	cout << "parsnp options:" << endl;
+	cout << "   -h <display this message>" << endl;
+	cout << "   -v <display the version>" << endl;
+	cout << "   <parameter file with options>" << endl;
+        exit(0);
+    }
+    if (version)
+    {
+      cout << "Parsnp " << VERSION << endl;
+      exit(0);
+    }
     if ( argc < 2)
     {
-        cout << "ERROR: No ini file specified!" << endl;
+        cout << "ERROR: No parameter file specified!" << endl;
         exit(1);
     }
     
     time (&tstart);
     CIniFile iniFile( argv[1] );
     iniFile.ReadFile();
-    string cparams = "ClusterParams";
+    string cparams = "LCB";
     string cval = "c";
     c = iniFile.GetValueI( cparams, cval);
-    d  = iniFile.GetValueI( "ClusterParams", "d");
-    diag_diff  = iniFile.GetValueF( "ClusterParams", "diagdiff");
+    d  = iniFile.GetValueI( "LCB", "d");
+    diag_diff  = iniFile.GetValueF( "LCB", "diagdiff");
     if (diag_diff < 0.0 || diag_diff > 10000000)
     {
         diag_diff = 1.0;
     }
-    q  = iniFile.GetValueI( "ClusterParams", "q");
-    p = iniFile.GetValueI(  "ClusterParams","p");
-    doAlign = iniFile.GetValueI( "ClusterParams","doalign");
-    cores = iniFile.GetValueI( "ClusterParams","cores");
-    gridRun = iniFile.GetValueB( "ClusterParams","gridRun");
-    recomb_filter = iniFile.GetValueB( "ClusterParams","recombfilter");
-    anchors = iniFile.GetValue( "MumParams", "anchors");
-    anchorfile = iniFile.GetValue( "MumParams", "anchorfile");
-    anchorsOnly = iniFile.GetValueB( "MumParams","anchorsonly");
-    calc_mumi = iniFile.GetValueB( "MumParams","calcmumi");
-    extendmums = iniFile.GetValueB( "MumParams","extendmums");
-    mums = iniFile.GetValue( "MumParams","mums");
-    mumfile = iniFile.GetValue( "MumParams","mumfile");
-    random = iniFile.GetValueI( "MumParams","filter");
-    factor = iniFile.GetValueF( "MumParams","factor");
+    q  = iniFile.GetValueI( "LCB", "q");
+    p = iniFile.GetValueI(  "LCB","p");
+    doAlign = iniFile.GetValueI( "LCB","doalign");
+    cores = iniFile.GetValueI( "LCB","cores");
+    gridRun = iniFile.GetValueB( "LCB","gridRun");
+    recomb_filter = iniFile.GetValueB( "LCB","recombfilter");
+    anchors = iniFile.GetValue( "MUM", "anchors");
+    anchorfile = iniFile.GetValue( "MUM", "anchorfile");
+    anchorsOnly = iniFile.GetValueB( "MUM","anchorsonly");
+    calc_mumi = iniFile.GetValueB( "MUM","calcmumi");
+    extendmums = iniFile.GetValueB( "MUM","extendmums");
+    mums = iniFile.GetValue( "MUM","mums");
+    mumfile = iniFile.GetValue( "MUM","mumfile");
+    random = iniFile.GetValueI( "MUM","filter");
+    factor = iniFile.GetValueF( "MUM","factor");
     //factor = 1.5;
-    prefix = iniFile.GetValue( "OutputParams","prefix","parsnp");
-    outdir = iniFile.GetValue( "OutputParams","outdir","output");
+    prefix = iniFile.GetValue( "Output","prefix","parsnp");
+    outdir = iniFile.GetValue( "Output","outdir","output");
     
     reverseRef = iniFile.GetValueB( "Reference", "reverse");
     reverseQuery = iniFile.GetValueB( "Query","reverse");
@@ -3167,26 +3197,21 @@ int main ( int argc, char* argv[] )
         align.setFinalClusters(mumfile);
     else
         align.setFinalClusters();
-    
-    time ( &end);
-    dif = difftime(end,start);
-    align.clustersTime = dif;
-    printf("        Final LCBs verified, elapsed time: %.0lf seconds\n\n",dif);
-    time ( &start);
-    cerr << "Step 6: Calculating and creating inter-LCB regions..." << endl;
-    
+
     align.setInterClusterRegions();
     time ( &end);
     dif = difftime(end,start);
     align.iclustersTime = dif;
-    printf("        LCB regions created, elapsed time: %.0lf seconds\n\n",dif);
+    printf("        LCBs created, elapsed time: %.0lf seconds\n\n",dif);
     /**/
     vector < float> coverager;
 
     if (!doAlign)
-        cerr << "Step 7: Writing output files..." << endl;
+        cerr << "Writing output files..." << endl;
     time ( &start);
     align.writeOutput("parsnpAligner",coverager);
+    //#add Unaligned regions to output
+    //#
     //align.setUnalignableRegions();
     time ( &end);
     
@@ -3197,7 +3222,7 @@ int main ( int argc, char* argv[] )
     time ( &tend);
     dif = difftime (tend,tstart);
     
-    cerr << "ParSNP: Finished core genome alignment" << endl;
+    cerr << "Parsnp: Finished core genome alignment" << endl;
     printf("        See log file for futher details. Total processing time: %.0lf seconds \n\n", dif );
     exit(0);
 }
