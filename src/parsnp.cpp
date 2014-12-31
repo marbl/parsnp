@@ -47,7 +47,7 @@
 // See the LICENSE file included with this software for license information.
 
 
-VERSION = "v1.0"
+
 #include <cstdlib>
 #include <omp.h>
 #include <algorithm>
@@ -2745,6 +2745,7 @@ char Aligner::shuffleChar(char b, bool enabled, bool &ft,int i,int diff)
 int main ( int argc, char* argv[] )
 {
     
+    string pversion = "v1.0.1"; 
     // {{{ variables
     //task_scheduler_init init;
     vector<string> genomes,pwgenomes,files,pwfiles,fasta,headers;
@@ -2803,7 +2804,7 @@ int main ( int argc, char* argv[] )
     }
     if (version)
     {
-      cout << "Parsnp " << VERSION << endl;
+      cout << "Parsnp " << pversion <<  endl;
       exit(0);
     }
     if ( argc < 2)
