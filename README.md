@@ -54,7 +54,7 @@ Before you start, if running OSX Mavericks, OpenMP is not supported via Clang, s
     * Install Macports, then:
     
        - sudo port install gcc49
-       - sudo port gcc-select mp-gcc49
+       - sudo port select gcc mp-gcc49
        
     * (or) Install Homebrew, then:
     
