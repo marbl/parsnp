@@ -35,14 +35,13 @@ Parsnp is distributed as a precompiled binary that should be devoid of external 
 
 ## Build from source
 
-### Important! required for building from source:
+### Important! Prerequisites required for building from source, install these first:
 
 * 64-bit Linux/*nix or OSX (>= v10.7)
 * autoconf && automake && libtool
 * gcc (>= v4.2.*)
 * OpenMP
 * Python (>= 2.6.*)
-
 
 To install from source:
 
