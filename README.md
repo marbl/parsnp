@@ -76,7 +76,7 @@ Once OpenMP support is added, the first (required!) step is to build libMUSCLE:
 
     cd muscle
     ./autogen.sh
-    ./configure --prefix=`pwd`
+    ./configure --prefix=`pwd` CXXFLAGS=’-fopenmp’ 
     make install
 
 Then, build Parsnp:
@@ -93,8 +93,8 @@ Once both installed (to cwd install by default):
 ## External software dependencies:
 
 * Muscle 3.8 (included as lib)
-* PhiPack (included in distribution)
-* FastTree2 (included in distribution)
+* PhiPack (Linux and OSX 64-bit binaries included in distribution)
+* FastTree2 (Linux and OSX 64-bit binaries included in distribution)
 
 ## Docs
 
