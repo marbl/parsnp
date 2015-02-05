@@ -6,12 +6,14 @@ import inspect
 from multiprocessing import *
 
 reroot_tree = True #use --midpoint-reroot
+
 try:
     import dendropy
 except ImportError:
     reroot_tree = False
 
-
+#check for sane file names
+special_chars = [",","[","]","{","}","(",")","!","\'","\"","*","\%","\<" ,"\>", "|", " ", "`"]
 CSI=""#"\x1B["
 reset=""#CSI+"m"
 BOLDME = ""#CSI+'\033[1m'
@@ -651,7 +653,15 @@ if __name__ == "__main__":
     reflen = 0
     fnafiles1 = []
     for file in files:
-
+       nameok = True
+       for char in special_chars:
+          if char in file:
+              
+              print "WARNING: File %s contains a non-supported special character (\'%s\') in file name. Please remove if you'd like to include. For best practices see: http://support.apple.com/en-us/HT202808"%(file,char)
+              nameok = False
+              break
+       if not nameok:
+           continue
        #any file in genome dir will be added..
        if file[0] != "." and file[-1] != "~":
 
@@ -678,6 +688,15 @@ if __name__ == "__main__":
             reflen = len(data)
         ff.close()
     for file in files:
+       nameok = True
+
+       for char in special_chars:
+          if char in file:
+              #print "WARNING: File %s contains a non-supported special character (%s) in file name. Please remove if you'd like to include. For best practices see: http://support.apple.com/en-us/HT202808"%(file,char)
+              nameok = False
+              break
+       if not nameok:
+           continue
        if file[0] != "." and file[-1] != "~":
             ff = open(seqdir+os.sep+file,'r')
             hdr = ff.readline()
