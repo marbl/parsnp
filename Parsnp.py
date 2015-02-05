@@ -62,6 +62,7 @@ if frozenbinary:
          os.environ["LD_LIBRARY_PATH"] = libPath + os.pathsep + oldLDPath
 
 VERBOSE = 0
+VERSION = "v1.1"
 PHI_WINDOWSIZE = 1000
 TOTSEQS=0
 
@@ -274,6 +275,9 @@ if os.path.exists("%s/MUMmer/nucmer_run"%(PARSNP_DIR)):
     ff.write(ffd)
     ff.close()
 
+def version():
+    print VERSION
+
 def usage():
     print "usage: parsnp [options] [-g|-r|-q](see below) -d <genome_dir> -p <threads>"
     print ""
@@ -312,6 +316,7 @@ def usage():
     print " -D = <float>: maximal diagonal difference? Either percentage (e.g. 0.2) or bp (e.g. 100bp) (default = 0.12)"    
     print " -e = <flag> greedily extend LCBs? experimental! (default = NO)"
     print " -n = <string>: alignment program (default: libMUSCLE)"        
+    print " -u = <flag>: output unaligned regions? .unaligned (default: NO)"
     print ""
     print "<<SNP filtration>>"
     #new, default is OFF
@@ -319,10 +324,11 @@ def usage():
     print " -x = <flag>: enable recombination filtering? (default: NO)"
     print ""
     print "<<Misc>>"
-    print " -h = <flag>: (h)elp: print this message"
+    print " -h = <flag>: (h)elp: print this message and exit"
     print " -p = <int>: number of threads to use? (default= 1)"
     print " -P = <int>: max partition size? limits memory usage (default= 15000000)"
     print " -v = <flag>: (v)erbose output? (default = NO)"
+    print " -V = <flag>: output (V)ersion and exit"
     print ""
 
 #hidden, not yet supported options
@@ -340,15 +346,13 @@ if __name__ == "__main__":
     opts = []
     args = []
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hxved:C:F:D:i:g:m:MU:o:a:cln:p:P:q:r:Rsz:", ["help","xtrafast","verbose","extend","sequencedir","clusterD","DiagonalDiff","iniFile","genbank","mumlength","onlymumi","MUMi","outputDir","anchorlength","curated","layout","aligNmentprog","threads","max-partition-size","query","reference","nofiltreps","split","minclustersiZe"])
+        opts, args = getopt.getopt(sys.argv[1:], "hxved:C:F:D:i:g:m:MU:o:a:cln:p:P:q:r:Rsz:uV", ["help","xtrafast","verbose","extend","sequencedir","clusterD","DiagonalDiff","iniFile","genbank","mumlength","onlymumi","MUMi","outputDir","anchorlength","curated","layout","aligNmentprog","threads","max-partition-size","query","reference","nofiltreps","split","minclustersiZe","unaligned","version"])
     except getopt.GetoptError, err:
         # print help information and exit:                                                                                                                                                                                                        
         print str(err) 
         usage()
         sys.exit(2)
-    if len(opts) < 2:
-        usage()
-        sys.exit(2)
+
     ref = ""
     currdir = os.getcwd()
     seqdir = "./genomes"
@@ -394,6 +398,9 @@ if __name__ == "__main__":
     for o, a in opts:
         if o in ("-v","--verbose"):
             VERBOSE = True
+        if o in ("-V","--version"):
+            version()
+            sys.exit(0)
         elif o in ("-h", "--help"):
             usage()
             sys.exit(0)
@@ -551,6 +558,8 @@ if __name__ == "__main__":
             fastmum = True
         elif o in ("-C","--clusterD"):
             cluster = a
+        elif o in ("-u","--unaligned"):
+            unaligned = "1"
         elif o in ("-s","--split"):
             splitseq = True
         elif o in ("-l","--layout"):
@@ -580,6 +589,9 @@ if __name__ == "__main__":
         outputDir = os.getcwd()+os.sep+timestamp
         os.mkdir("%s"%(outputDir))
 
+    if len(opts) < 2:
+        usage()
+        sys.exit(2)
 
     if len(ref) == 0 and len(genbank_ref) != 0:
         #we are parsing from genbank, set ref to genbank_ref
@@ -1315,11 +1327,9 @@ if __name__ == "__main__":
     if not VERBOSE and os.path.exists("%s/all_mumi.ini"%(outputDir)):
         os.remove("%s/all_mumi.ini"%(outputDir))
 
-    if not VERBOSE and os.path.exists("%s/parsnpAligner.ini"%(outputDir)):
-        os.remove("%s/parsnpAligner.ini"%(outputDir))
+    #if not VERBOSE and os.path.exists("%s/parsnpAligner.ini"%(outputDir)):
+    #    os.remove("%s/parsnpAligner.ini"%(outputDir))
 
-    if not VERBOSE and os.path.exists("%s/parsnp.unalign"%(outputDir)):
-        os.remove("%s/parsnp.unalign"%(outputDir))
     if os.path.exists("%s/parsnp.snps.mblocks"%(outputDir)):
         os.remove("%s/parsnp.snps.mblocks"%(outputDir))
 
