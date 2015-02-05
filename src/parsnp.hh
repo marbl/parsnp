@@ -62,6 +62,7 @@ public:
     ssize n;
     bool gridRun;
     bool extendmums;
+    bool doUnalign;
     map<string, int> hdr2idx;
     vector< map<int, string> > pos2hdr;
     vector<float>  coverage;
@@ -87,7 +88,7 @@ public:
      * @return The test results
      */
     Aligner( vector<string>& ,vector<string>&, int, int , int, int, string, string, bool,  vector<char *>&, vector<string>&
-            , float, bool , vector<float>&, vector<float>& ,bool,int,bool,int,bool,map<string, int>&, vector< map <int,string> > &, vector<string>&, bool calc_mumi, float diag_diff, string prefix, string outdir, bool recomb_filter);
+	     , float, bool , vector<float>&, vector<float>& ,bool,int,bool,int,bool,map<string, int>&, vector< map <int,string> > &, vector<string>&, bool calc_mumi, float diag_diff, string prefix, string outdir, bool recomb_filter, bool doUnalign);
     /**
      * parsnp Aligner class destructor
      */

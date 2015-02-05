@@ -90,12 +90,13 @@ Aligner::Aligner()
 // {{{ Aligner::Aligner( vector<string> genomes, vector<string> files, int d, int q,
 Aligner::Aligner( vector<string>& genomes , vector<string>& files, int c, int d, int q, int p, string anchors, \
                  string mums, bool filter,  vector<char *>& clustalparams,\
-                 vector<string>& fasta, float factor ,bool harsh,vector<float>& gcCount,vector<float>& atCount, bool shustring, int doAlign, bool gridRun, int cores, bool extendmums,map<string, int>& header_to_index, vector < map<int,string> > & pos_to_header, vector<string>& headers, bool calc_mumi, float diag_diff, string prefix, string outdir, bool recomb_filter)
+		  vector<string>& fasta, float factor ,bool harsh,vector<float>& gcCount,vector<float>& atCount, bool shustring, int doAlign, bool gridRun, int cores, bool extendmums,map<string, int>& header_to_index, vector < map<int,string> > & pos_to_header, vector<string>& headers, bool calc_mumi, float diag_diff, string prefix, string outdir, bool recomb_filter, bool doUnalign)
 : d(d), q(q),p(p)
 {
     
     
     // {{{ variables
+    this->doUnalign = doUnalign;
     this->diag_diff = diag_diff;
     this->calc_mumi = calc_mumi;
     this->hdr2idx = header_to_index;
@@ -504,7 +505,7 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
 {
     
     if (this->doAlign)
-        cerr << "Step 7: Writing output files & aligning LCBs..." << endl;
+        cerr << "Writing output files & aligning LCBs..." << endl;
     //string psnp = "psnp";
     string prefix = this->outdir;
     prefix.append("/");
@@ -567,6 +568,7 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
     char b[9];
     int nnum = this->n;
     int doalign = this->doAlign;
+    bool dounalign = this->doUnalign;
     bool extendmums = this->extendmums;
     vector<Cluster> allclusters = this->clusters;
     vector<string> allgenomes = this->genomes;
@@ -580,7 +582,7 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
         if(ct.type==1)
             total_clusters++;
     }
-    xmfafile << "#FormatVersion MultiSNiP" << endl;
+    xmfafile << "#FormatVersion Parsnp v1.1" << endl;
     xmfafile << "#SequenceCount " << nnum << endl;
     for (int zz = 0; zz < nnum; zz++)
     {
@@ -1522,7 +1524,7 @@ void Aligner::setMums1(TRegion r1, vector<TMum>& mums, bool anchors = true, bool
         time ( &start);
         
         if(anchors)
-            cerr <<  endl << "        Step 2a: constructing compressed suffix graph...\n";
+            cerr <<  endl << "        Constructing compressed suffix graph...\n";
         csg = new_CSG(csg,int(factor)*rs[0].len_region,rs[0].sequence,rs[0].len_region,0);
         build_CSG(csg, rs[0].sequence, rs[0].len_region, 0);
         find_leaves(csg);
@@ -1542,7 +1544,7 @@ void Aligner::setMums1(TRegion r1, vector<TMum>& mums, bool anchors = true, bool
         
         time ( &start);
         if(anchors)
-            cerr << "        Step 2b: performing initial search for exact matches in the sequences...\n";
+            cerr << "        Performing initial search for exact matches in the sequences...\n";
         
         for (int i = 0; i < int(rs[0].len_region); i++)
         {
@@ -1904,17 +1906,17 @@ void Aligner::setMumi(TRegion r1, vector<TMum>& mums, bool anchors = true, bool 
         time ( &start);
         
         if(anchors)
-            cerr <<  endl << "        Step 2a: constructing compressed suffix graph...\n";
+            cerr <<  endl << "        Constructing compressed suffix graph...\n";
         
         
         time ( &end);
         dif = difftime(end,start);
         if(anchors)
-            printf("                 compressed suffix graph construction elapsed time: %.0lf seconds\n\n",dif);
+            printf("                 Compressed suffix graph construction elapsed time: %.0lf seconds\n\n",dif);
         
         time ( &start);
         if(anchors)
-            cerr << "        Step 2b: Calculting pairwise MUMi distances...\n";
+            cerr << "        Calculting pairwise MUMi distances...\n";
         
         
         FILE* mumifile;
@@ -2311,7 +2313,7 @@ bool Aligner::setUnalignableRegions( void )
             {                
                 unalnfile << ">" << k+1  << ":" << startpos << "-" << endpos << " + " << this->fasta.at(k).substr(0,this->fasta.at(k).size()) << endl;
                 string  s1 =  this->genomes[k].substr(startpos, endpos-startpos);
-                
+
                 long pos = 0;
                 while ( pos+80 < s1.size() )
                 {
@@ -2321,6 +2323,10 @@ bool Aligner::setUnalignableRegions( void )
                 }
                 if ( pos + 1 < s1.size() )
                     unalnfile << s1.substr(pos,s1.size()) << endl;
+                if (s1.size() == 0)
+		{
+		  unalnfile << "-" << endl;
+		}
                 unalnfile << "=" << endl;
                 
             }
@@ -2761,6 +2767,7 @@ int main ( int argc, char* argv[] )
     int i = 0;
     int qfiles = 1 ;
     int c=0, d=0,q=0,p=0,doAlign=0,cores=2;
+    bool doUnalign = false;
     bool gridRun = false;
     bool extendmums = false;
     bool calc_mumi = false;
@@ -2828,6 +2835,8 @@ int main ( int argc, char* argv[] )
     q  = iniFile.GetValueI( "LCB", "q");
     p = iniFile.GetValueI(  "LCB","p");
     doAlign = iniFile.GetValueI( "LCB","doalign");
+    doUnalign = iniFile.GetValueB( "LCB","unaligned");
+    cout << doUnalign << endl;
     cores = iniFile.GetValueI( "LCB","cores");
     gridRun = iniFile.GetValueB( "LCB","gridRun");
     recomb_filter = iniFile.GetValueB( "LCB","recombfilter");
@@ -3105,11 +3114,11 @@ int main ( int argc, char* argv[] )
     cerr << "\n*****************************************************\n" << endl;
     time (&end);
     cerr << "ParSNP: Preparing to construct global multiple alignment framework"<< endl;
-    cerr << "\nStep 1: Preparing to verify and process input sequences..." << endl;
+    cerr << "\nPreparing to verify and process input sequences..." << endl;
     dif = difftime (end,start);
     printf("        Finished processing input sequences, elapsed time: %.0lf seconds\n\n", dif );
     
-    Aligner align( genomes, files, c, d, q, p, anchors, mums, random, clustalparams, fasta,factor,harsh,gcCount,atCount,shustring,doAlign,gridRun,cores,extendmums, header_to_index,pos_to_header,headers,calc_mumi,diag_diff,prefix,outdir,recomb_filter);
+    Aligner align( genomes, files, c, d, q, p, anchors, mums, random, clustalparams, fasta,factor,harsh,gcCount,atCount,shustring,doAlign,gridRun,cores,extendmums, header_to_index,pos_to_header,headers,calc_mumi,diag_diff,prefix,outdir,recomb_filter,doUnalign);
     for ( ssize i = 0; i < align.n; i ++ )
     {
         align.mumlayout.push_back(mumrow);
@@ -3118,7 +3127,7 @@ int main ( int argc, char* argv[] )
     }
     time ( &start);
     if (! calc_mumi)
-        cerr << "Step 2: Searching for initial MUM anchors..." << endl;
+        cerr << "Searching for initial MUM anchors..." << endl;
     else
         cerr << "Calculating mumi distances.." << endl;
     
@@ -3147,7 +3156,7 @@ int main ( int argc, char* argv[] )
     time ( &start);
     if ( ! anchorsOnly && ! mumfile.size() && ! shustring)
     {
-        cerr << "Step 3: Performing recursive MUM search between MUM anchors..." << endl;
+        cerr << "Performing recursive MUM search between MUM anchors..." << endl;
         mumsfound = align.doWork();
     }
     time ( &end);
@@ -3171,7 +3180,7 @@ int main ( int argc, char* argv[] )
     
     if ( random && ! mumfile.size() )
     {
-        cerr << "Step 4: Filtering spurious matches..." << endl;
+        cerr << "Filtering spurious matches..." << endl;
         time ( &start);
         align.random = random;
         align.filterRandom1(random);
@@ -3186,7 +3195,7 @@ int main ( int argc, char* argv[] )
     
     time ( &start);
     
-    cerr << "Step 5: Creating and verifying final LCBs..." << endl;
+    cerr << "Creating and verifying final LCBs..." << endl;
     if( mumfile.size())
         align.setFinalClusters(mumfile);
     else
@@ -3211,11 +3220,13 @@ int main ( int argc, char* argv[] )
         cerr << "Writing output files..." << endl;
     time ( &start);
     align.writeOutput("parsnpAligner",coverager);
-    //#add Unaligned regions to output
-    //#
-    //align.setUnalignableRegions();
     time ( &end);
-    
+    if (doUnalign)
+    {
+        //#add Unaligned regions to output
+        align.setUnalignableRegions();
+    }
+
     dif = difftime (end,start);
     printf("        Output files updated, elapsed time: %.0lf seconds\n\n", dif );
     
