@@ -35,14 +35,13 @@ Parsnp is distributed as a precompiled binary that should be devoid of external 
 
 ## Build from source
 
-### Important! required for building from source:
+### Important! Prerequisites required for building from source, install these first:
 
 * 64-bit Linux/*nix or OSX (>= v10.7)
 * autoconf && automake && libtool
 * gcc (>= v4.2.*)
 * OpenMP
 * Python (>= 2.6.*)
-
 
 To install from source:
 
@@ -54,7 +53,7 @@ Before you start, if running OSX Mavericks, OpenMP is not supported via Clang, s
     * Install Macports, then:
     
        - sudo port install gcc49
-       - sudo port gcc-select mp-gcc49
+       - sudo port select gcc mp-gcc49
        
     * (or) Install Homebrew, then:
     
@@ -76,7 +75,7 @@ Once OpenMP support is added, the first (required!) step is to build libMUSCLE:
 
     cd muscle
     ./autogen.sh
-    ./configure --prefix=`pwd`
+    ./configure --prefix=`pwd` CXXFLAGS=’-fopenmp’ 
     make install
 
 Then, build Parsnp:
@@ -93,8 +92,8 @@ Once both installed (to cwd install by default):
 ## External software dependencies:
 
 * Muscle 3.8 (included as lib)
-* PhiPack (included in distribution)
-* FastTree2 (included in distribution)
+* PhiPack (Linux and OSX 64-bit binaries included in distribution)
+* FastTree2 (Linux and OSX 64-bit binaries included in distribution)
 
 ## Docs
 
