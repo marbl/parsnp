@@ -5,7 +5,7 @@ import signal
 import inspect
 from multiprocessing import *
 
-reroot_tree = True
+reroot_tree = False #use --midpoint-reroot
 try:
     import dendropy
 except ImportError:
@@ -454,7 +454,7 @@ if __name__ == "__main__":
             ctcmd = "cat "
             
             first = True
-            genbank_ref = ""
+            #genbank_ref = ""
             for genbank_file in genbank_files_str.split(","):
                 if len(genbank_file) <= 1:
                     continue
@@ -593,18 +593,13 @@ if __name__ == "__main__":
         usage()
         sys.exit(2)
 
+    sortem = True
     if len(ref) == 0 and len(genbank_ref) != 0:
-        #we are parsing from genbank, set ref to genbank_ref
+        #we are parsing from genbank, set ref to genbank_ref && turn off sorting
         ref = genbank_ref
+        sortem = False
 
-    print (len(outputDir)+17)*"*"
-    print BOLDME+"SETTINGS:"+ENDC
-    print "|-"+BOLDME+"aligner:\tlibMUSCLE"+ENDC
-    print "|-"+BOLDME+"seqdir:\t%s"%(seqdir)+ENDC
-    print "|-"+BOLDME+"outdir:\t%s"%(outputDir)+ENDC
-    print "|-"+BOLDME+"OS:\t\t%s"%(OSTYPE)+ENDC
-    print "|-"+BOLDME+"threads:\t%s"%(threads)+ENDC
-    print (len(outputDir)+17)*"*"
+
 
     autopick_ref = False
     if (len(ref) == 0 and len(query) == 0) or len(seqdir) == "":
@@ -614,6 +609,23 @@ if __name__ == "__main__":
         sys.stderr.write( WARNING_YELLOW+"WARNING: no reference genome specified, going to autopick from %s as closest to %s\n"%(seqdir, query)+ENDC)
         autopick_ref = True
         ref = query
+
+    if VERBOSE:
+        print (len(outputDir)+17)*"*"
+        print BOLDME+"SETTINGS:"+ENDC
+        if ref != "!":
+            print "|-"+BOLDME+"refgenome:\t%s"%(ref)+ENDC
+        else:
+            print "|-"+BOLDME+"refgenome:\t%s"%("autopick")+ENDC
+        print "|-"+BOLDME+"aligner:\tlibMUSCLE"+ENDC
+        print "|-"+BOLDME+"seqdir:\t%s"%(seqdir)+ENDC
+        print "|-"+BOLDME+"outdir:\t%s"%(outputDir)+ENDC
+        print "|-"+BOLDME+"OS:\t\t%s"%(OSTYPE)+ENDC
+        print "|-"+BOLDME+"threads:\t%s"%(threads)+ENDC
+        print (len(outputDir)+17)*"*"
+
+    print "\n<<Parsnp started>>\n"
+
     #1)read fasta files (contigs/scaffolds/finished/DBs/dirs)
     sys.stderr.write( "-->Reading Genome (asm, fasta) files from %s..\n"%(seqdir))
     files = []
@@ -623,8 +635,6 @@ if __name__ == "__main__":
     except IOError:
         sys.stderr.write( ERROR_RED+"ERROR: problem reading files from %s\n"%(seqdir)+ENDC)
         sys.exit(1)
-
-
     sys.stderr.write( "-->Reading Genbank file(s) for reference (.gbk) %s..\n"%(genbank_files_str))
     if len(genbank_file) == 0:
         sys.stderr.write( "  |->["+WARNING_YELLOW+"WARNING"+ENDC+"]"+": no genbank file provided for reference annotations, skipping..\n"+ENDC)
@@ -709,7 +719,7 @@ if __name__ == "__main__":
         fnafiles.remove(ref)
 
     #sort reference by largest replicon to smallest
-    if os.path.exists(ref) and not autopick_ref:
+    if sortem and os.path.exists(ref) and not autopick_ref:
         ff = open(ref,'r')
         seqs = ff.read().split(">")[1:]
         seq_dict = {}
@@ -732,6 +742,8 @@ if __name__ == "__main__":
         ff.close()
         ffo.close()
         ref = outputDir+os.sep+ref.split(os.sep)[-1]+".ref"
+    else:
+        ref = genbank_ref
 
     #remove any query sequences 30% diff in length
     allfiles = [ref.rsplit(os.sep,1)[-1]]
@@ -762,28 +774,11 @@ if __name__ == "__main__":
     if os.path.exists(outputDir+os.sep+"alltogether.fasta"):
         os.system("rm " + outputDir+os.sep+"alltogether.fasta")
     if os.path.exists(outputDir+os.sep+"blocks/b1"):
-        os.system("rm -rf "+outputDir+os.sep+"blocks/b*")
-    processed = []
-    #initiate parallelMummer tasks
-    tasks = []
-    refg = open(ref,'r')
-
-    refg.close()
-    for file in fnafiles:
-        if (file[-3:] == ".fa" or file[-4:] == ".fna" or file[-6:] == ".fasta" or file[-4:] == ".fas" or file[-6:] == ".scafs" or file[-5:] == ".scfs" or file[-8:] == ".contigs" or file[-4:] == ".scf" or file[-4:] == ".ctg" or file[-5:] == ".ctgs") and file not in processed:
-            processed.append(file)
-            params = {}
-            params["jobID"] = len(tasks)
-            params["ref"] = "%s"%(ref)
-            params["query"] = "%s"%(seqdir+os.sep+file+".single")
-            params["queryfile"] = file
-            params["prefix"] = "%s"%(file+".mummerout")
-            params["output"] = outputDir+os.sep+"%s"%(file+".mummerout.out")
-            tasks.append(params)
-            
-
-    
-    fnafiles = processed
+        ftrm = glob.glob(outputDir+os.sep+"blocks/b*")
+        for file in ftrm:
+            os.system("rm -rf "+file)
+    #processed = []
+    #fnafiles = processed
     fileidx = -1
 
     hit_dict = {}
@@ -1043,11 +1038,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     #update thresholds
-    if coverage <= 0.05:
-        sys.stderr.write( "  |->["+ERROR_RED+"ERROR"+ENDC+"]"+": aligned regions cover less than 5% of reference genome, something is not right.. please adjust params and rerun. If problem persists please contact developers (treangen@gmail.com)"+ENDC)
+    if coverage <= 0.01:
+        sys.stderr.write( "  |->["+ERROR_RED+"ERROR"+ENDC+"]"+": aligned regions cover less than 1% of reference genome, something is not right.. please adjust params and rerun. If problem persists please contact developers (treangen@gmail.com)"+ENDC)
         sys.exit(1)
-    elif coverage < 0.2:
-        sys.stderr.write( "  |->["+WARNING_YELLOW+"WARNING"+ENDC+"]"+": aligned regions cover less than 20% of reference genome! please verify recruited genomes are all strain of interest"+ENDC)
+    elif coverage < 0.1:
+        sys.stderr.write( "  |->["+WARNING_YELLOW+"WARNING"+ENDC+"]"+": aligned regions cover less than 10% of reference genome! please verify recruited genomes are all strain of interest"+ENDC)
     else:
         pass
     print "  |->["+OK_GREEN+"OK"+ENDC+"]"
@@ -1082,7 +1077,6 @@ if __name__ == "__main__":
                 block_startpos.append(int(spos))
                 block_dict[file] = [int(spos),int(epos), rseq]
                 lf.close()
-    print "-->Determining repetitive regions.."
     run_repeat_filter = filtreps
     if run_repeat_filter:
         repfile = findrepsref(ref,"%s"%(outputDir))
@@ -1091,12 +1085,7 @@ if __name__ == "__main__":
         if os.path.exists("%s.coords"%(os.getcwd()+os.sep+ref.split(os.sep)[-1])):
             os.system("rm %s.coords"%(os.getcwd()+os.sep+ref.split(os.sep)[-1]))
 
-    if run_repeat_filter and len(repfile) > 1:
-        sys.stderr.write("  |->["+OK_GREEN+"OK"+ENDC+"]\n")
-    if run_repeat_filter and len(repfile) <= 1:
-        sys.stderr.write("  |->["+ERROR_RED+"ERROR"+ENDC+"]\n")
-    elif not run_repeat_filter:        
-        sys.stderr.write("  |->["+SKIP_GRAY+"SKIP"+ENDC+"]\n")
+
     #initiate parallelPhiPack tasks
     run_recomb_filter = 0
    
@@ -1205,7 +1194,13 @@ if __name__ == "__main__":
     annotation_dict = {}
     if xtrafast or 1:
         #add genbank here, if present
-        run_command("%s/harvest -q -o %s/parsnp.ggr -f %s -x "%(PARSNP_DIR,outputDir,ref)+outputDir+os.sep+"parsnp.xmfa")
+        if len(genbank_ref) != 0:
+            rnc = "%s/harvest -q -o %s/parsnp.ggr -x "%(PARSNP_DIR,outputDir)+outputDir+os.sep+"parsnp.xmfa"
+            for file in genbank_files:
+                rnc += " -g %s " %(file)
+            run_command(rnc)
+        else:
+            run_command("%s/harvest -q -o %s/parsnp.ggr -f %s -x "%(PARSNP_DIR,outputDir,ref)+outputDir+os.sep+"parsnp.xmfa")
 
         if run_recomb_filter:
             run_command("%s/harvest -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(PARSNP_DIR,outputDir,outputDir,outputDir))
@@ -1245,7 +1240,7 @@ if __name__ == "__main__":
         if xtrafast or 1:
             #if newick available, add
             #new flag to update branch lengths
-            run_command("%s/harvest -t -q -i "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -f %s -n "%(ref)+outputDir+os.sep+"parsnp.tree ")
+            run_command("%s/harvest --midpoint-reroot -u -q -i "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
  
     print "  |->["+OK_GREEN+"OK"+ENDC+"]"
 
@@ -1258,14 +1253,12 @@ if __name__ == "__main__":
         print "  |->"+BOLDME+"Aligned %d genomes in %.2f seconds"%(totseqs,float(elapsed))+ENDC
     #cleanup
     rmfiles = glob.glob(outputDir+os.sep+"*.aln")
-    rmfiles2 = glob.glob(outputDir+os.sep+"blocks/b*/*")
+    #rmfiles2 = glob.glob(outputDir+os.sep+"blocks/b*/*")
     rmfiles3 = glob.glob(outputDir+os.sep+"blocks/b*")
     for file in rmfiles:
         os.system("rm %s"%(file))
-    for file in rmfiles2:
-        os.system("rm %s"%(file))
     for file in rmfiles3:
-        os.system("rm %s"%(file))
+        os.system("rm -rf %s"%(file))
 
     filepres = 0
     print BOLDME+"\n<<Parsnp finished! All output available in %s>>"%(outputDir)+ENDC
@@ -1327,8 +1320,6 @@ if __name__ == "__main__":
     if not VERBOSE and os.path.exists("%s/all_mumi.ini"%(outputDir)):
         os.remove("%s/all_mumi.ini"%(outputDir))
 
-    #if not VERBOSE and os.path.exists("%s/parsnpAligner.ini"%(outputDir)):
-    #    os.remove("%s/parsnpAligner.ini"%(outputDir))
 
     if os.path.exists("%s/parsnp.snps.mblocks"%(outputDir)):
         os.remove("%s/parsnp.snps.mblocks"%(outputDir))
