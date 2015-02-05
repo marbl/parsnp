@@ -5,7 +5,7 @@ import signal
 import inspect
 from multiprocessing import *
 
-reroot_tree = False #use --midpoint-reroot
+reroot_tree = True #use --midpoint-reroot
 try:
     import dendropy
 except ImportError:
@@ -653,7 +653,7 @@ if __name__ == "__main__":
     for file in files:
 
        #any file in genome dir will be added..
-       if file[0] != "." and file[-1] != "~":#file[-3:] == ".fa" or file[-4:] == ".fna" or file[-6:] == ".fasta" or file[-4:] == ".fas" or file[-6:] == ".scafs" or file[-5:] == ".scfs" or file[-8:] == ".contigs" or file[-4:] == ".scf" or file[-4:] == ".ctg" or file[-5:] == ".ctgs":
+       if file[0] != "." and file[-1] != "~":
 
             ff = open(seqdir+os.sep+file,'r')
             hdr = ff.readline()
@@ -678,9 +678,7 @@ if __name__ == "__main__":
             reflen = len(data)
         ff.close()
     for file in files:
-
-       if 1:#file[-3:] == ".fa" or file[-4:] == ".fna" or file[-6:] == ".fasta" or file[-4:] == ".fas" or file[-6:] == ".scafs" or file[-5:] == ".scfs" or file[-8:] == ".contigs" or file[-4:] == ".scf" or file[-4:] == ".ctg" or file[-5:] == ".ctgs":
-    
+       if file[0] != "." and file[-1] != "~":
             ff = open(seqdir+os.sep+file,'r')
             hdr = ff.readline()
             if hdr[0] == ">":
