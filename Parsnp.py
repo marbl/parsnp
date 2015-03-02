@@ -358,8 +358,8 @@ if __name__ == "__main__":
     ref = ""
     currdir = os.getcwd()
     seqdir = "./genomes"
-    anchor = "1.1*(Log(S))"
-    mum = "1.3*(Log(S))"
+    anchor = "1.0*(Log(S))"
+    mum = "1.1*(Log(S))"
     maxpartition = 15000000
     fastmum = True
     cluster = "300"
@@ -632,7 +632,12 @@ if __name__ == "__main__":
     sys.stderr.write( "-->Reading Genome (asm, fasta) files from %s..\n"%(seqdir))
     files = []
     try:
-        files = os.listdir(seqdir)
+        files1 = os.listdir(seqdir)
+        files = []
+        for f1 in files1:
+            if not os.path.isdir(seqdir+os.sep+f1):
+                files.append(f1)
+            
         sys.stderr.write( "  |->["+OK_GREEN+"OK"+ENDC+"]\n")
     except IOError:
         sys.stderr.write( ERROR_RED+"ERROR: problem reading files from %s\n"%(seqdir)+ENDC)
@@ -653,22 +658,21 @@ if __name__ == "__main__":
     reflen = 0
     fnafiles1 = []
     for file in files:
-       nameok = True
-       for char in special_chars:
-          if char in file:
-              
-              print "WARNING: File %s contains a non-supported special character (\'%s\') in file name. Please remove if you'd like to include. For best practices see: http://support.apple.com/en-us/HT202808"%(file,char)
-              nameok = False
-              break
-       if not nameok:
-           continue
-       #any file in genome dir will be added..
-       if file[0] != "." and file[-1] != "~":
 
+       #any file in genome dir will be added..
+       if file[0] != "." and file[-1] != "~" and len(file) > 1 and not os.path.isdir(seqdir+os.sep+file):
             ff = open(seqdir+os.sep+file,'r')
             hdr = ff.readline()
             seq = ff.readline()
             if len(seq) > 1 and ("A" in seq.upper() or "G" in seq.upper() or "C" in seq.upper() or "T" in seq.upper() or "N" in seq.upper()) and hdr[0] == ">":
+                nameok = True
+                for char in special_chars:
+                    if char in file:
+              
+                        print "WARNING: File %s contains a non-supported special character (\'%s\') in file name. Please remove if you'd like to include. For best practices see: http://support.apple.com/en-us/HT202808"%(file,char)
+                        nameok = False
+                        break
+            if nameok:
                 fnafiles1.append(file)
 
 
