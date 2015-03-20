@@ -273,10 +273,9 @@ def usage():
     print " -n = <string>: alignment program (default: libMUSCLE)"        
     print " -u = <flag>: output unaligned regions? .unaligned (default: NO)"
     print ""
-    print "<<SNP filtration>>"
+    print "<<Recombination filtration>>"
     #new, default is OFF
-    print " -R = <flag>: enable (R)epeat filtering?"
-    print " -x = <flag>: enable recombination filtering? (default: NO)"
+    print " -x = <flag>: enable filtering of SNPs located in PhiPack identified regions of recombination? (default: NO)"
     print ""
     print "<<Misc>>"
     print " -h = <flag>: (h)elp: print this message and exit"
