@@ -202,53 +202,6 @@ def run_command(command,ignorerc=0):
       sys.stderr.write( "\n")
       sys.exit(rc)
 
-def findrepsref(ref,outdir):
-    #run NUCMER on ref to find repeats and filter
-    prefix = outdir+os.sep+ref.rsplit(".",1)[0].rsplit(os.sep)[-1]
-    command = "%s/nucmer -p %s --maxmatch --nosimplify -l 30 %s %s"%(PARSNP_DIR,prefix,ref,ref)
-    run_command(command)
-    command  = "%s/show-coords -T -L 100 -I 90 %s.delta > %s.coords"%(PARSNP_DIR,prefix,prefix)
-    run_command(command)
-    of1 = open("%s.coords"%(prefix),'r')
-    seq_dict = {}
-    seq_len = {}
-    ref1 = open(ref,'r')
-    seqs = ref1.read().split(">")[1:]
-    cnt = 1
-    for seq in seqs:
-        hdr,nt = seq.split("\n",1)
-        hdr = hdr.split(" ",1)[0].strip()
-        seq_dict[hdr] = cnt
-        seq_len[hdr] = len(nt.replace("\n",""))
-        cnt+=1
-    ref1.close()
-    bed1f = "%s.reps"%(prefix)
-    bed1 = open(bed1f,'w')
-    qryweight = {}
-    for line in of1.xreadlines():
-        data = line.replace("\n","").split("\t")
-        if len(data) < 5:
-            continue
-
-        ref = data[-2].strip()
-        idx = 0
-        try:
-            idx = seq_dict[ref]
-        except KeyError:
-            continue
-        slen = 0
-        try:
-            slen = seq_len[ref]
-        except KeyError:
-            continue
-        spos = int(data[0])
-        epos = int(data[1])
-        if float(epos-spos)/float(slen) >= 0.3:
-            continue
-        bed1.write("%d\t%d\t%d\n"%(idx,spos,epos))
-    bed1.close()
-    return bed1f
-
 sys.stderr.write( BOLDME+"|--Parsnp %s--|\n"%(VERSION)+ENDC)
 sys.stderr.write( BOLDME+"For detailed documentation please see --> http://harvest.readthedocs.org/en/latest\n"+ENDC)
 
@@ -407,7 +360,8 @@ if __name__ == "__main__":
             usage()
             sys.exit(0)
         elif o in ("-R","--filtreps"):
-            filtreps = True
+            print "WARNING: This option is no longer supported, ignoring. Please see harvest.readthedocs.org for bed filtering w/ harvesttools"
+            filtreps = False
         elif o in ("-r","--reference"):
             ref = a
             if a != "!":
@@ -569,10 +523,6 @@ if __name__ == "__main__":
         elif o in ("-z","--minclustersize"):
             mincluster = a
 
-
-    if not frozenbinary and not os.path.exists("./MUMmer/nucmer"):
-        filtreps = False   
-    
     if outputDir != "":
         today = datetime.datetime.now()
         timestamp = "P_"+today.isoformat().replace("-","_").replace(".","").replace(":","").replace("T","_")
@@ -612,7 +562,7 @@ if __name__ == "__main__":
         autopick_ref = True
         ref = query
 
-    if VERBOSE:
+    if 1:
         print (len(outputDir)+17)*"*"
         print BOLDME+"SETTINGS:"+ENDC
         if ref != "!":
@@ -1099,13 +1049,6 @@ if __name__ == "__main__":
                 block_dict[file] = [int(spos),int(epos), rseq]
                 lf.close()
     run_repeat_filter = filtreps
-    if run_repeat_filter:
-        repfile = findrepsref(ref,"%s"%(outputDir))
-        if os.path.exists("%s.delta"%(os.getcwd()+os.sep+ref.split(os.sep)[-1])):
-            os.system("rm %s.delta"%(os.getcwd()+os.sep+ref.split(os.sep)[-1]))
-        if os.path.exists("%s.coords"%(os.getcwd()+os.sep+ref.split(os.sep)[-1])):
-            os.system("rm %s.coords"%(os.getcwd()+os.sep+ref.split(os.sep)[-1]))
-
 
     #initiate parallelPhiPack tasks
     run_recomb_filter = 0
