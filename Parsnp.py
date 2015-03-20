@@ -360,7 +360,7 @@ if __name__ == "__main__":
             usage()
             sys.exit(0)
         elif o in ("-R","--filtreps"):
-            print "WARNING: This option is no longer supported, ignoring. Please see harvest.readthedocs.org for bed filtering w/ harvesttools"
+            print "WARNING: -R option is no longer supported, ignoring. Please see harvest.readthedocs.org for bed filtering w/ harvesttools"
             filtreps = False
         elif o in ("-r","--reference"):
             ref = a
