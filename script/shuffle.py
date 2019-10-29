@@ -51,7 +51,7 @@ if __name__ == "__main__":
      rnumber = 0
      shuffleperseq = 1
      if len(sys.argv) < 6:
-         print "\nUsage: shuffleGenome <FastA input file> <output file> <Rearrangement size> <Number of rearrangements> <Shuffled sequences per seq>"
+         print("\nUsage: shuffleGenome <FastA input file> <output file> <Rearrangement size> <Number of rearrangements> <Shuffled sequences per seq>")
          sys.exit(1)
      else:
          infileName = sys.argv[1]
@@ -77,22 +77,22 @@ if __name__ == "__main__":
          header = infile.readline()
          infiled = infile.read()
          filelen = len(infiled)
-         print "\nInput sequence:%s"%seqfile
-         print "Input sequence length: %d\n"%filelen
+         print("\nInput sequence:%s"%seqfile)
+         print("Input sequence length: %d\n"%filelen)
 
          #split genome into filelen/rsize parts
          partlist = []
          pos = 0
          if rsize > filelen:
              rsize = filelen
-         for part in xrange(0,filelen/rsize):
+         for part in range(0,filelen/rsize):
              partlist.append(infiled[pos:(part+1)*rsize])
              pos +=rsize
 
          partlist.append(infiled[pos:])
 
 
-         for shuffleit in xrange(0,shuffleperseq): 
+         for shuffleit in range(0,shuffleperseq): 
              count = 0
              seq = ""
              parttemp = ""
@@ -114,13 +114,13 @@ if __name__ == "__main__":
                      parttemp = partlist[part1]
                      partlist[part1] = partlist[part2]
                      partlist[part2] = parttemp
-                     print "Transposition"
-                     print "  Positions %d and %d swapped"%(part1,part2)
+                     print("Transposition")
+                     print("  Positions %d and %d swapped"%(part1,part2))
                  elif operation == 2:
                      #inversion
                      partlist[part1] = invertSeq(partlist[part1])
-                     print "Inversion"
-                     print " Position %d"%part1
+                     print("Inversion")
+                     print(" Position %d"%part1)
 
 
                      
@@ -137,7 +137,7 @@ if __name__ == "__main__":
              #write output to file
              fname = seqfile[:-4]
              fname+= "_Shuffled_%d.fna"%(shuffleit+1)
-             print "output: %s"%(fname)
+             print("output: %s"%(fname))
              
              fout = open(fname,'w')
              fout.write(output)
