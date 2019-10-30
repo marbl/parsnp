@@ -2751,7 +2751,7 @@ char Aligner::shuffleChar(char b, bool enabled, bool &ft,int i,int diff)
 int main ( int argc, char* argv[] )
 {
     
-    string pversion = "v1.0.1"; 
+    string pversion = "v1.3"; 
     // {{{ variables
     //task_scheduler_init init;
     vector<string> genomes,pwgenomes,files,pwfiles,fasta,headers;

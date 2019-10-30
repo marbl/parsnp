@@ -23,7 +23,7 @@ SKIP_GRAY = ""#CSI+'\033[37m'
 WARNING_YELLOW = ""#CSI+'\033[93m'
 ERROR_RED = ""#CSI+'\033[91m'
 ENDC = ""#CSI+'0m'
-VERSION="v1.2"
+VERSION="v1.3"
 PARSNP_DIR = sys.path[0]
 try:
     os.environ["PARSNPDIR"]
@@ -64,7 +64,7 @@ if frozenbinary:
          os.environ["LD_LIBRARY_PATH"] = libPath + os.pathsep + oldLDPath
 
 VERBOSE = 0
-VERSION = "v1.2"
+VERSION = "v1.3"
 PHI_WINDOWSIZE = 1000
 TOTSEQS=0
 
