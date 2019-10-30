@@ -1,5 +1,5 @@
 AC_INIT(parsnp,1.3)
-AM_INIT_AUTOMAKE(parsnp,1.3)
+AM_INIT_AUTOMAKE([1.3 subdir-objects])
 AC_PROG_CC(gcc)
 
 AC_ARG_WITH(libmuscle, [  --with-libmuscle=<path/to/libmuscle>     libMUSCLE install dir (default: `pwd`/muscle)])

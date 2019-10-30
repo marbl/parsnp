@@ -98,10 +98,11 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
+am__dirstamp = $(am__leading_dot)dirstamp
 am_parsnp_OBJECTS = parsnp-MuscleInterface.$(OBJEXT) \
 	parsnp-parsnp.$(OBJEXT) parsnp-LCB.$(OBJEXT) \
 	parsnp-LCR.$(OBJEXT) parsnp-TMum.$(OBJEXT) \
-	parsnp-Converter.$(OBJEXT) parsnp-iniFile.$(OBJEXT)
+	parsnp-Converter.$(OBJEXT) ./ext/parsnp-iniFile.$(OBJEXT)
 parsnp_OBJECTS = $(am_parsnp_OBJECTS)
 parsnp_LDADD = $(LDADD)
 parsnp_LINK = $(CXXLD) $(parsnp_CXXFLAGS) $(CXXFLAGS) \
@@ -350,6 +351,14 @@ uninstall-binPROGRAMS:
 
 clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
+ext/$(am__dirstamp):
+	@$(MKDIR_P) ./ext
+	@: > ext/$(am__dirstamp)
+ext/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) ./ext/$(DEPDIR)
+	@: > ext/$(DEPDIR)/$(am__dirstamp)
+./ext/parsnp-iniFile.$(OBJEXT): ext/$(am__dirstamp) \
+	ext/$(DEPDIR)/$(am__dirstamp)
 
 parsnp$(EXEEXT): $(parsnp_OBJECTS) $(parsnp_DEPENDENCIES) $(EXTRA_parsnp_DEPENDENCIES) 
 	@rm -f parsnp$(EXEEXT)
@@ -357,6 +366,7 @@ parsnp$(EXEEXT): $(parsnp_OBJECTS) $(parsnp_DEPENDENCIES) $(EXTRA_parsnp_DEPENDE
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
+	-rm -f ./ext/*.$(OBJEXT)
 
 distclean-compile:
 	-rm -f *.tab.c
@@ -366,19 +376,21 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parsnp-LCR.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parsnp-MuscleInterface.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parsnp-TMum.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parsnp-iniFile.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parsnp-parsnp.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./ext/$(DEPDIR)/parsnp-iniFile.Po@am__quote@
 
 .cpp.o:
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ $<
 
 .cpp.obj:
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
@@ -467,19 +479,19 @@ parsnp-Converter.obj: Converter.cpp
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(parsnp_CXXFLAGS) $(CXXFLAGS) -c -o parsnp-Converter.obj `if test -f 'Converter.cpp'; then $(CYGPATH_W) 'Converter.cpp'; else $(CYGPATH_W) '$(srcdir)/Converter.cpp'; fi`
 
-parsnp-iniFile.o: ./ext/iniFile.cpp
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(parsnp_CXXFLAGS) $(CXXFLAGS) -MT parsnp-iniFile.o -MD -MP -MF $(DEPDIR)/parsnp-iniFile.Tpo -c -o parsnp-iniFile.o `test -f './ext/iniFile.cpp' || echo '$(srcdir)/'`./ext/iniFile.cpp
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/parsnp-iniFile.Tpo $(DEPDIR)/parsnp-iniFile.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='./ext/iniFile.cpp' object='parsnp-iniFile.o' libtool=no @AMDEPBACKSLASH@
+./ext/parsnp-iniFile.o: ./ext/iniFile.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(parsnp_CXXFLAGS) $(CXXFLAGS) -MT ./ext/parsnp-iniFile.o -MD -MP -MF ./ext/$(DEPDIR)/parsnp-iniFile.Tpo -c -o ./ext/parsnp-iniFile.o `test -f './ext/iniFile.cpp' || echo '$(srcdir)/'`./ext/iniFile.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) ./ext/$(DEPDIR)/parsnp-iniFile.Tpo ./ext/$(DEPDIR)/parsnp-iniFile.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='./ext/iniFile.cpp' object='./ext/parsnp-iniFile.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(parsnp_CXXFLAGS) $(CXXFLAGS) -c -o parsnp-iniFile.o `test -f './ext/iniFile.cpp' || echo '$(srcdir)/'`./ext/iniFile.cpp
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(parsnp_CXXFLAGS) $(CXXFLAGS) -c -o ./ext/parsnp-iniFile.o `test -f './ext/iniFile.cpp' || echo '$(srcdir)/'`./ext/iniFile.cpp
 
-parsnp-iniFile.obj: ./ext/iniFile.cpp
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(parsnp_CXXFLAGS) $(CXXFLAGS) -MT parsnp-iniFile.obj -MD -MP -MF $(DEPDIR)/parsnp-iniFile.Tpo -c -o parsnp-iniFile.obj `if test -f './ext/iniFile.cpp'; then $(CYGPATH_W) './ext/iniFile.cpp'; else $(CYGPATH_W) '$(srcdir)/./ext/iniFile.cpp'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/parsnp-iniFile.Tpo $(DEPDIR)/parsnp-iniFile.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='./ext/iniFile.cpp' object='parsnp-iniFile.obj' libtool=no @AMDEPBACKSLASH@
+./ext/parsnp-iniFile.obj: ./ext/iniFile.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(parsnp_CXXFLAGS) $(CXXFLAGS) -MT ./ext/parsnp-iniFile.obj -MD -MP -MF ./ext/$(DEPDIR)/parsnp-iniFile.Tpo -c -o ./ext/parsnp-iniFile.obj `if test -f './ext/iniFile.cpp'; then $(CYGPATH_W) './ext/iniFile.cpp'; else $(CYGPATH_W) '$(srcdir)/./ext/iniFile.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) ./ext/$(DEPDIR)/parsnp-iniFile.Tpo ./ext/$(DEPDIR)/parsnp-iniFile.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='./ext/iniFile.cpp' object='./ext/parsnp-iniFile.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(parsnp_CXXFLAGS) $(CXXFLAGS) -c -o parsnp-iniFile.obj `if test -f './ext/iniFile.cpp'; then $(CYGPATH_W) './ext/iniFile.cpp'; else $(CYGPATH_W) '$(srcdir)/./ext/iniFile.cpp'; fi`
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(parsnp_CXXFLAGS) $(CXXFLAGS) -c -o ./ext/parsnp-iniFile.obj `if test -f './ext/iniFile.cpp'; then $(CYGPATH_W) './ext/iniFile.cpp'; else $(CYGPATH_W) '$(srcdir)/./ext/iniFile.cpp'; fi`
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -596,6 +608,8 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
+	-rm -f ext/$(DEPDIR)/$(am__dirstamp)
+	-rm -f ext/$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
@@ -605,7 +619,7 @@ clean: clean-am
 clean-am: clean-binPROGRAMS clean-generic mostlyclean-am
 
 distclean: distclean-am
-	-rm -rf ./$(DEPDIR)
+	-rm -rf ./$(DEPDIR) ./ext/$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -651,7 +665,7 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-	-rm -rf ./$(DEPDIR)
+	-rm -rf ./$(DEPDIR) ./ext/$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
