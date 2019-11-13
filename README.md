@@ -7,6 +7,6 @@ Parsnp is primarily distributed as a binary for Linux or OS X (see Parsnp link a
 
 CITATION provides details on how to cite Parsnp.
 
-INSTALL provides instructions for building from source and installing.
+INSTALL (Run install.sh if building from source) provides instructions for building from source and installing.
 
 LICENSE provides licensing information.
