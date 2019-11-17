@@ -277,6 +277,10 @@ def usage():
     #new, default is OFF
     print(" -x = <flag>: enable filtering of SNPs located in PhiPack identified regions of recombination? (default: NO)")
     print("")
+    print("<<Probe Design>>")
+    #probe design addition - default is OFF
+    print(" -b = <flag>: remove genome length constraints to search for MUMs in concatenated sequences much larger than reference")
+    print("")
     print("<<Misc>>")
     print(" -h = <flag>: (h)elp: print this message and exit")
     print(" -p = <int>: number of threads to use? (default= 1)")
@@ -300,7 +304,7 @@ if __name__ == "__main__":
     opts = []
     args = []
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hxved:C:F:D:i:g:m:MU:o:a:cln:p:P:q:r:Rsz:uV", ["help","xtrafast","verbose","extend","sequencedir","clusterD","DiagonalDiff","iniFile","genbank","mumlength","onlymumi","MUMi","outputDir","anchorlength","curated","layout","aligNmentprog","threads","max-partition-size","query","reference","nofiltreps","split","minclustersiZe","unaligned","version"])
+        opts, args = getopt.getopt(sys.argv[1:], "hxved:C:F:D:i:g:m:MU:o:a:cln:p:P:q:r:Rsz:uV:b", ["help","xtrafast","verbose","extend","sequencedir","clusterD","DiagonalDiff","iniFile","genbank","mumlength","onlymumi","MUMi","outputDir","anchorlength","curated","layout","aligNmentprog","threads","max-partition-size","query","reference","nofiltreps","split","minclustersiZe","unaligned","version","probe"])
     except getopt.GetoptError as err:
         # print help information and exit:                                                                                                                                                                                                        
         print(str(err)) 
@@ -343,7 +347,7 @@ if __name__ == "__main__":
     req_params["refgenome"] = 0
     req_params["genomedir"] = 0
     filtreps = False
-
+    probe = False
 
     repfile = ""
     multifasta = False
@@ -521,6 +525,8 @@ if __name__ == "__main__":
             layout = True
         elif o in ("-z","--minclustersize"):
             mincluster = a
+        elif o in ("-b","--probe"):
+            probe = True
 
     if outputDir != "":
         today = datetime.datetime.now()
@@ -672,13 +678,19 @@ if __name__ == "__main__":
                     continue
                 #sorry too small
                 if totlen <= 20:
+                    sys.stderr.write( "WARNING: File %s is less than or equal to 20bp in length. Skip!\n"%(file))
                     continue
                 sizediff = float(reflen)/float(totlen) 
+                
                 #EDITED THIS TO CHANGE GENOME THRESHOLD, WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
-                #if sizediff <= 0.6 or sizediff >= 1.4:
-                if sizediff >= 1.4:
-                    #print file #TEST PRINT FOR CHECKING THRESHOLD
-                    continue
+                if not probe:
+                    if sizediff <= 0.6 or sizediff >= 1.4:
+                        sys.stderr.write( "WARNING: File %s is too short or too long compared to reference. Skip!\n"%(file))
+                        continue
+                else:
+                    if sizediff >= 1.4:
+                        sys.stderr.write( "WARNING: File %s is too short compared to reference genome. Skip!\n"%(file))
+                        continue
 
                 fnafiles.append(file)
                 fnaf_sizes[file] = totlen#len(data)
