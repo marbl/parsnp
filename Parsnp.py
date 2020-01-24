@@ -635,13 +635,16 @@ if __name__ == "__main__":
         ref = random.choice(fnafiles1)
         ref = seqdir+os.sep+ref
     if 1:
+        #ADVAIT EDIT TO FIX HEADER BUG
+        dashcount = 0
         ff = open(ref,'r')
-        hdr = ff.readline()
+        hdr = ff.readlinei()
+        if "-" in hdr:
+            dashcount = hdr.count("-")
         if hdr[0] == ">":
-    
             data = ff.read()
             data = data.replace("\n","")
-            if "-" in data:
+            if data.count("-") != dashcount:
                 sys.stderr.write( "ERROR: ref genome sequence %s seems to aligned! remove and restart \n"%(ref))
                 sys.exit(1)
             reflen = len(data)
@@ -660,8 +663,8 @@ if __name__ == "__main__":
        if file[0] != "." and file[-1] != "~":
             ff = open(seqdir+os.sep+file,'r')
             hdr = ff.readline()
+            name_flag = True
             if hdr[0] == ">":
-
                 data = []
                 totlen = 0
                 for line in ff:
