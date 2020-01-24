@@ -638,7 +638,7 @@ if __name__ == "__main__":
         #ADVAIT EDIT TO FIX HEADER BUG
         dashcount = 0
         ff = open(ref,'r')
-        hdr = ff.readlinei()
+        hdr = ff.readline()
         if "-" in hdr:
             dashcount = hdr.count("-")
         if hdr[0] == ">":
