@@ -1,10 +1,13 @@
 # See the LICENSE file included with this software for license information.
 
+
 import os, sys, string, getopt, random,subprocess, time, glob,operator, math, datetime,numpy #pysam
+import argparse
 import signal
 import inspect
 from multiprocessing import *
 
+__version__ = "1.2"
 reroot_tree = True #use --midpoint-reroot
 
 try:
@@ -14,6 +17,12 @@ except ImportError:
 
 #check for sane file names
 special_chars = [",","[","]","{","}","(",")","!","\'","\"","*","\%","\<" ,"\>", "|", " ", "`"]
+ALIGNER_TO_IDX = {
+        "mafft": "1",
+        "muscle": "2",
+        "fsa": "3",
+        "prank": "4"
+}
 CSI=""#"\x1B["
 reset=""#CSI+"m"
 BOLDME = ""#CSI+'\033[1m'
@@ -23,7 +32,6 @@ SKIP_GRAY = ""#CSI+'\033[37m'
 WARNING_YELLOW = ""#CSI+'\033[93m'
 ERROR_RED = ""#CSI+'\033[91m'
 ENDC = ""#CSI+'0m'
-VERSION="v1.2"
 PARSNP_DIR = sys.path[0]
 try:
     os.environ["PARSNPDIR"]
@@ -74,17 +82,21 @@ TOTSEQS=0
 #0) init
 ## Get start time                                                                                                                                                                                                                                                                  
 t1 = time.time()
-OSTYPE="linux"
 
-p = subprocess.Popen("echo `uname`", shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+p = subprocess.Popen(
+        "echo `uname`", 
+        shell=True, 
+        stdin=None, 
+        stdout=subprocess.PIPE, 
+        stderr=subprocess.PIPE)
 (checkStdout, checkStderr) = p.communicate()
-if checkStderr != "":
+if checkStderr != b'':
+    OSTYPE = "Linux"
     sys.stderr.write(WARNING_YELLOW+"Warning: Cannot determine OS, defaulting to %s\n"%(OSTYPE)+ENDC)
 else:
     OSTYPE = checkStdout.strip()
 
 
-binary_type = "linux"
 if OSTYPE == "Darwin":
     binary_type = "osx"
 else:
@@ -98,6 +110,8 @@ def handler(signum, frame):
 
 signal.signal(signal.SIGINT, handler)
 
+
+#TODO Merge run fns
 def run_phipack(query,seqlen,workingdir):
     currdir = os.getcwd()
     os.chdir(workingdir)
@@ -117,13 +131,15 @@ def run_bng(query,workingdir):
     currdir = os.getcwd()
     os.chdir(workingdir)
     command = "%s/run_fasta"%()
-    run_command(command,1)
+    run_command(command, 1)
     command = "%s/run_fasta"%()
-    run_command(command,1)
+    run_command(command, 1)
     command = "%s/run_fasta"%()
-    run_command(command,1)
+    run_command(command, 1)
     os.chdir(currdir)
     
+
+#TODO Merge wrappers
 def parallelWrapper(params):
    try:
         jobID = params["jobID"]
@@ -135,7 +151,7 @@ def parallelWrapper(params):
         return result
    except KeyboardInterrupt:
         result["status"] = 0
-        sys.stderr.write("Keyboard error in thread %d, quitting\n"%(jobID))
+        sys.stderr.write("Keyboard interrupt in thread %d, quitting\n"%(jobID))
         return result
    except Exception:
         result["status"] = 0
@@ -230,70 +246,220 @@ if os.path.exists("%s/MUMmer/nucmer_run"%(PARSNP_DIR)):
     ff.write(ffd)
     ff.close()
 
-def version():
-    print(VERSION)
+def is_valid_file(parser, arg):
+    if not os.path.exists(arg) and arg != "!" and arg != None and arg != "":
+        parser.error("The file %s does not exist!" % arg)
+    else:
+        return arg
 
-def usage():
-    print("usage: parsnp [options] [-g|-r|-q](see below) -d <genome_dir> -p <threads>")
-    print("")
-    print("Parsnp quick start for three example scenarios: ")
-    print("1) With reference & genbank file: ")
-    print(" >parsnp -g <reference_genbank_file1,reference_genbank_file2,..> -d <genome_dir> -p <threads> ")
-    print("")
-    print("2) With reference but without genbank file:")
-    print(" >parsnp -r <reference_genome> -d <genome_dir> -p <threads> ")
-    print("")
-    print("3) Autorecruit reference to a draft assembly:")
-    print(" >parsnp -q <draft_assembly> -d <genome_db> -p <threads> ")
-    print("")
-    print("[Input parameters]")
-    print("<<input/output>>")
-    print(" -c = <flag>: (c)urated genome directory, use all genomes in dir and ignore MUMi? (default = NO)")
-    print(" -d = <path>: (d)irectory containing genomes/contigs/scaffolds")
-    print(" -r = <path>: (r)eference genome (set to ! to pick random one from genome dir)")
-    print(" -g = <string>: Gen(b)ank file(s) (gbk), comma separated list (default = None)")
-    print(" -o = <string>: output directory? default [./P_CURRDATE_CURRTIME]")
-    print(" -q = <path>: (optional) specify (assembled) query genome to use, in addition to genomes found in genome dir (default = NONE)")
-    print("")
-    print("<<MUMi>>")
-    print(" -U = <float>: max MUMi distance value for MUMi distribution ")
-    print(" -M = <flag>: calculate MUMi and exit? overrides all other choices! (default: NO)")
-    #new, mutually exclusive
-    print(" -i = <float>: max MUM(i) distance (default: autocutoff based on distribution of MUMi values)")
-    print("")
-    print("<<MUM search>>")
+def is_valid_dir(parser, arg):
+    if not os.path.exists(arg):
+        parser.error( "The directory %s does not exist\n" % (arg))
+    if len(glob.glob("%s/*"%(arg))) == 0:
+        parser.error("The director %s is empty"%(arg))
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="""
+    Parsnp quick start for three example scenarios: 
+    1) With reference & genbank file: 
+    python Parsnp.py -g <reference_genbank_file1,reference_genbank_file2,..> -d <genome_dir> -p <threads> 
+     
+    2) With reference but without genbank file:
+    python Parsnp.py -r <reference_genome> -d <genome_dir> -p <threads> 
+
+    3) Autorecruit reference to a draft assembly:
+    python Parsnp.py -q <draft_assembly> -d <genome_db> -p <threads> 
+    """, formatter_class=argparse.RawTextHelpFormatter)
+    #TODO Use lambda to check files and directories
+    input_output_args = parser.add_argument_group(title="Input/Output")
+    input_output_args.add_argument(
+            "-c", 
+            "--curated", 
+            action = "store_true",
+            help = "(c)urated genome directory, use all genomes in dir and ignore MUMi?")
+    input_output_args.add_argument(
+            "-d", 
+            "--sequence-dir",
+            "--sequenceDir",
+            type = str, 
+            help = "(d)irectory containing genomes/contigs/scaffolds") 
+    input_output_args.add_argument(
+            "-r", 
+            "--reference",
+            type = lambda fname: is_valid_file(parser, fname), 
+            default = "",
+            help = "(r)eference genome (set to ! to pick random one from sequence dir)")
+    #TODO Accept as space-separated input and parse automatically w/ argparse
+    input_output_args.add_argument(
+            "-g", 
+            "--genbank",
+            type = str, 
+            default = "",
+            help = "Genbank file(s) (gbk), comma separated list")
+    input_output_args.add_argument(
+            "-o", 
+            "--output-dir",
+            type = str, 
+            default = "[P_CURRDATE_CURRTIME]")
+    input_output_args.add_argument(
+            "-q", 
+            "--query",
+            type = str, 
+            help = "Specify (assembled) query genome to use, in addition to genomes found in genome dir")
+
+    MUMi_args = parser.add_argument_group(title="MUMi")
+    MUMi_mutex_args = MUMi_args.add_mutually_exclusive_group()
+    #TODO whats the default?
+    MUMi_mutex_args.add_argument(
+            "-U",
+            "--max-mumi-distr-dist",
+            "--MUMi",
+            type = float, 
+            default = 0.5,
+            help = "Max MUMi distance value for MUMi distribution")
+    #TODO Not parsed in current parsnp version and had a duplicate -i flag. Is this no longer used?
+    MUMi_mutex_args.add_argument(
+            "-mmd", 
+            "--max-mumi-distance",
+            type = float, 
+            help = "Max MUMi distance (default: autocutoff based on distribution of MUMi values)")
+    MUMi_args.add_argument(
+            "-F",
+            "--fastmum",
+            action = "store_true",
+            help = "Fast MUMi calculation")
+    MUMi_args.add_argument(
+            "-M", 
+            "--mumi_only",
+            "--onlymumi",
+            action = "store_true",
+            help = "Calculate MUMi and exit? overrides all other choices!")
+
+    MUM_search_args = parser.add_argument_group(title="MUM search")
     #new, default to lower, 12-17
-    print(" -a = <int>: min (a)NCHOR length (default = 1.1*Log(S))")
-    print(" -C = <int>: maximal cluster D value? (default=100)")
-    print(" -z = <path>: min LCB si(z)e? (default = 25)")
-    print("")
-    print("<<LCB alignment>>")
-    print(" -D = <float>: maximal diagonal difference? Either percentage (e.g. 0.2) or bp (e.g. 100bp) (default = 0.12)")    
-    print(" -e = <flag> greedily extend LCBs? experimental! (default = NO)")
-    print(" -n = <string>: alignment program (default: libMUSCLE)")        
-    print(" -u = <flag>: output unaligned regions? .unaligned (default: NO)")
-    print("")
-    print("<<Recombination filtration>>")
-    #new, default is OFF
-    print(" -x = <flag>: enable filtering of SNPs located in PhiPack identified regions of recombination? (default: NO)")
-    print("")
-    print("<<Probe Design>>")
-    #probe design addition - default is OFF
-    print(" -b = <flag>: remove genome length constraints to search for MUMs in concatenated sequences much larger than reference")
-    print("")
-    print("<<Misc>>")
-    print(" -h = <flag>: (h)elp: print this message and exit")
-    print(" -p = <int>: number of threads to use? (default= 1)")
-    print(" -P = <int>: max partition size? limits memory usage (default= 15000000)")
-    print(" -v = <flag>: (v)erbose output? (default = NO)")
-    print(" -V = <flag>: output (V)ersion and exit")
-    print("")
+    MUM_search_args.add_argument(
+            "-a", 
+            "--min-anchor-length",
+            "--anchorlength",
+            type = str,
+            default = "1.1*(Log(S))",
+            help = "Min (a)NCHOR length (default = 1.1*(Log(S)))")
+    MUM_search_args.add_argument(
+            "-C", 
+            "--max-cluster-d",
+            "--clusterD",
+            type = int,
+            default = 300,
+            help = "Maximal cluster D value")
+    MUM_search_args.add_argument(
+            "-z", 
+            "--min-cluster-size",
+            "--minclustersize",
+            type = int,
+            default = 21,
+            help = "Minimum cluster size")
+    #TODO -z was a duplicate flag but no longer parsed as min-lcb-size in the current parsnp version
+    # MUM_search_args.add_argument(
+            # "-z", 
+            # "--min-lcb-size",
+            # type = int,
+            # default = 25,
+            # help = "Min LCB si(z)e")
 
-#hidden, not yet supported options
-#print("-q = <path>: (optional) specify (assembled) query genome to use, in addition to genomes found in genome dir (default = NONE)"
-#print("-s = <flag>: (s)plit genomes by n's (default = NO)"
-#print("-z = <path>: min cluster si(z)e? (default = 10)"
-#print("-F = <flag>: fast MUMi calc? (default=NO)"
+    LCB_alignment_args = parser.add_argument_group(title="LCB alignment")
+    LCB_alignment_args.add_argument(
+            "-D",
+            "--max-diagonal-difference",
+            "--DiagonalDiff",
+            metavar = "MAX_DIAG_DIFF",
+            type = str,
+            default="0.12",
+            help = "Maximal diagonal difference. Either percentage (e.g. 0.2) or bp (e.g. 100bp)")    
+    LCB_alignment_args.add_argument(
+            "-n",
+            "--alignment-program",
+            "--alignmentprog",
+            type = str,
+            choices = list(ALIGNER_TO_IDX.keys()),
+            default = "muscle",
+            help = "Alignment program to use")
+    LCB_alignment_args.add_argument(
+            "-u",
+            "--unaligned",
+            action = "store_true",
+            help = "Ouput unaligned regions")
+
+    recombination_args = parser.add_argument_group("Recombination filtration")
+    #TODO -x was a duplicate flag but no longer parsed as filter-phipack-snps in the current parsnp version
+    # recombination_args.add_argument(
+            # "-x",
+            # "--filter-phipack-snps",
+            # action = "store_true",
+            # help = "Enable filtering of SNPs located in PhiPack identified regions of recombination")
+
+    probe_design_args = parser.add_argument_group("Probe design")
+    probe_design_args.add_argument(
+            "-b",
+            "--probe",
+            action = "store_true",
+            help = "Remove genome length constraints to search for MUMs in concatenated sequences much larger than reference")
+
+    misc_args = parser.add_argument_group("Misc")
+    misc_args.add_argument(
+            "-p",
+            "--threads",
+            type = int,
+            default = 1,
+            help = "Number of threads to use")
+    misc_args.add_argument(
+            "-P",
+            "--max-partition-size",
+            type = int,
+            default = 15000000,
+            help = "Max partition size (limits memory usage)")
+    misc_args.add_argument(
+            "-v",
+            "--verbose",
+            action = "store_true",
+            help = "Verbose output")
+    misc_args.add_argument(
+            "-V",
+            "--version",
+            action = "version",
+            version = "%(prog)s " + __version__)
+
+    todo_args = parser.add_argument_group("Need to be placed in a group")
+    todo_args.add_argument(
+            "-e",
+            "--extend",
+            action = "store_true")
+    todo_args.add_argument(
+            "-l",
+            "--layout",
+            action = "store_true")
+    todo_args.add_argument(
+            "-x",
+            "--xtrafast",
+            action = "store_true")
+    todo_args.add_argument(
+            "-s",
+            "--split",
+            action = "store_true",
+            help = "Split genomes by n's")
+    todo_args.add_argument(
+            "-i",
+            "--ini-file",
+            "--inifile",
+            type = str)
+    todo_args.add_argument(
+            "-m", 
+            "--mum-length",
+            "--mumlength",
+            type = str, 
+            default = "1.1*(Log(S))",
+            help = "TODO!!!")
+    return parser.parse_args()
+
 #print("-g = <bool>: auto-launch (g)ingr? (default = NO)"
 
 
@@ -303,252 +469,153 @@ if __name__ == "__main__":
     #PARSNP_DIR = parsnp_dir
     opts = []
     args = []
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "hxved:C:F:D:i:g:m:MU:o:a:cln:p:P:q:r:Rsz:uV:b", ["help","xtrafast","verbose","extend","sequencedir","clusterD","DiagonalDiff","iniFile","genbank","mumlength","onlymumi","MUMi","outputDir","anchorlength","curated","layout","aligNmentprog","threads","max-partition-size","query","reference","nofiltreps","split","minclustersiZe","unaligned","version","probe"])
-    except getopt.GetoptError as err:
-        # print help information and exit:                                                                                                                                                                                                        
-        print(str(err)) 
-        usage()
-        sys.exit(2)
+    args = parse_args()
 
-    ref = ""
+    print(args)
     currdir = os.getcwd()
-    seqdir = "./genomes"
-    anchor = "1.0*(Log(S))"
-    mum = "1.1*(Log(S))"
-    maxpartition = 15000000
-    fastmum = True
-    cluster = "300"
-    curated = False
-    aligner = "2"
-    threads = "32"
-    unaligned = "0"
-    mincluster = "21"
-    diagdiff = "0.12"
-    splitseq = False
-    extend = False
-    layout = False
-    xtrafast = False
-    inifile=""
-    mumi_only = False
-    mumidistance = 0.5
+    VERBOSE = args.verbose
+    ref = args.reference
+    query = args.query
+    seqdir = args.sequence_dir
+    anchor = args.min_anchor_length
+    mum = args.mum_length
+    maxpartition = args.max_partition_size
+    fastmum = args.fastmum
+    cluster = args.max_cluster_d
+    curated = args.curated
+    try:
+        aligner = ALIGNER_TO_IDX[args.alignment_program.lower()]
+    except KeyError:
+        print("{} not supported as an alignment proram".format(args.alignment_program))
+        sys.exit(1)
+    threads = args.threads
+    unaligned = "0" if not args.unaligned else "1"
+    mincluster = args.min_cluster_size
+    diagdiff = args.max_diagonal_difference
+    splitseq = args.split
+    extend = args.extend
+    layout = args.layout
+    xtrafast = args.xtrafast
+    inifile= args.ini_file
+    mumi_only = args.mumi_only
+    mumidistance = args.max_mumi_distr_dist
+    outputDir = args.output_dir
+    probe = args.probe
     genbank_file = ""
     genbank_files = []
     genbank_files_str = ""
     genbank_files_cat = ""
     genbank_ref = ""
-    outputDir = ""
-    query = ""
     reflen = 0
     use_gingr = ""
     inifile_exists = False
-    req_params = {}
-    req_params["genbank"] = 0
-    req_params["refgenome"] = 0
-    req_params["genomedir"] = 0
     filtreps = False
-    probe = False
 
     repfile = ""
     multifasta = False
     ref_seqs = {}
 
-    for o, a in opts:
-        if o in ("-v","--verbose"):
-            VERBOSE = True
-        if o in ("-V","--version"):
-            version()
-            sys.exit(0)
-        elif o in ("-h", "--help"):
-            usage()
-            sys.exit(0)
-        elif o in ("-R","--filtreps"):
-            print("WARNING: -R option is no longer supported, ignoring. Please see harvest.readthedocs.org for bed filtering w/ harvesttools")
-            filtreps = False
-        elif o in ("-r","--reference"):
-            ref = a
-            if a != "!":
-                try:
-                    rf = open(ref,'r')
-                    rfd = rf.read()
-                    refseqs = rfd.split(">")[1:]
-                    currpos = 0
-                    seqnum = 1
-                    if len(refseqs) > 1:
-                        multifasta = True
-                        for seq in refseqs:
-                            fastalen = len(seq.split("\n",1)[-1].replace("\n",""))
-                            ref_seqs[currpos+fastalen] = seqnum
-                            currpos = currpos+fastalen
-                            seqnum+=1
-                        
-                    rf.close()
-                except IOError:
-                    sys.stderr.write( "ERROR: Reference genome file %s not found\n"%(ref))
-                    sys.exit(1)       
-                req_params["refgenome"] = 1
-                 
-        elif o in ("-d","--sequenceDir"):
-            seqdir = a
-            if not os.path.exists(seqdir):
-                sys.stderr.write( "ERROR: genome dir %s does not exist\n"%(seqdir))
-                sys.exit(1)
-            if len(glob.glob("%s/*"%(seqdir))) == 0:
-                sys.stderr.write( "ERROR: genome dir %s is empty\n"%(seqdir))
-                sys.exit(1)
-
-            req_params["genomedir"] = 1
-
-        elif o in ("-q","--query"):
-            query= a
+    # Parse reference if necessary
+    if ref and ref != "!":
+        try:
+            rf = open(ref,'r')
+            rfd = rf.read()
+            refseqs = rfd.split(">")[1:]
+            currpos = 0
+            seqnum = 1
+            if len(refseqs) > 1:
+                multifasta = True
+                for seq in refseqs:
+                    fastalen = len(seq.split("\n",1)[-1].replace("\n",""))
+                    ref_seqs[currpos+fastalen] = seqnum
+                    currpos = currpos+fastalen
+                    seqnum+=1
+            rf.close()
+        except IOError:
+            sys.stderr.write( "ERROR: Reference genome file %s not found\n"%(ref))
+            sys.exit(1)       
+    
+    # Validate genbank files
+    if args.genbank:
+        genbank_files_str = args.genbank
+        genbank_files = genbank_files_str.split(",")
+        ctcmd = "cat "
+        
+        first = True
+        #genbank_ref = ""
+        for genbank_file in genbank_files_str.split(","):
+            if len(genbank_file) <= 1:
+                continue
+            ctcmd += genbank_file + " "
             try:
-                rf = open(query,'r')
-                rf.close()
+                #parse out reference, starts at ORIGIN ends at //, remove numbers, 
+                rf = open(genbank_file,'r')
+                if first:
+                    genbank_ref = genbank_file+".fna"
+                    genbank_ref1 = open(genbank_ref,'w')
+                    giline = ""
+                    while 1:
+                        giline = rf.readline()
+                        if "VERSION" and "GI" in giline:
+                            break
+                        elif giline == None or giline == "":
+                            sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                            sys.exit(1)
+                    if len(giline) <= 2:
+                        sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                        sys.exit(1)
+                    genbank_ref1.write(">gi|"+giline.split("GI:")[-1])
+                    first = False
+                else:
+                    genbank_ref1 = open(genbank_ref,'a')
+                    giline = ""
+                    while 1:
+                        giline = rf.readline()
+                        if "VERSION" and "GI" in giline:
+                            break
+                        elif giline == None or giline == "":
+                            sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                            sys.exit(1)
+                    if len(giline) <= 2:
+                        sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                        sys.exit(1)
+                    genbank_ref1.write(">gi|"+giline.split("GI:")[-1])
+                ntdata = False
+                data = ""
+                for line in rf:
+                    if ntdata:
+                        if "//" in line:
+                            ntdata = False
+                            break
+                        data += line[9:].replace(" ","")
+                    if "ORIGIN" in line:
+                         ntdata = True
+                
+                rf.close() 
+                if len(data) < 10:
+                      sys.stderr.write( "ERROR: Genbank file %s contains no sequence data\n"%(genbank_file))
+                      sys.exit(1)
+                genbank_ref1.write(data.upper())
+                genbank_ref1.close()
             except IOError:
-                sys.stderr.write( "ERROR: optional Query file %s provided but not found\n"%(query))
-                sys.exit(1)            
-        elif o in ("-g","--genbank"):
-            genbank_files_str = a
-            genbank_files = genbank_files_str.split(",")
-            ctcmd = "cat "
-            
-            first = True
-            #genbank_ref = ""
-            for genbank_file in genbank_files_str.split(","):
-                if len(genbank_file) <= 1:
-                    continue
-                ctcmd += genbank_file + " "
-                try:
-                    #parse out reference, starts at ORIGIN ends at //, remove numbers, 
-                    rf = open(genbank_file,'r')
-                    if first:
-                        genbank_ref = genbank_file+".fna"
-                        genbank_ref1 = open(genbank_ref,'w')
-                        giline = ""
-                        while 1:
-                            giline = rf.readline()
-                            if "VERSION" and "GI" in giline:
-                                break
-                            elif giline == None or giline == "":
-                                sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
-                                sys.exit(1)
-                        if len(giline) <= 2:
-                            sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
-                            sys.exit(1)
-                        genbank_ref1.write(">gi|"+giline.split("GI:")[-1])
-                        first = False
-                    else:
-                        genbank_ref1 = open(genbank_ref,'a')
-                        giline = ""
-                        while 1:
-                            giline = rf.readline()
-                            if "VERSION" and "GI" in giline:
-                                break
-                            elif giline == None or giline == "":
-                                sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
-                                sys.exit(1)
-                        if len(giline) <= 2:
-                            sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
-                            sys.exit(1)
-                        genbank_ref1.write(">gi|"+giline.split("GI:")[-1])
-                    ntdata = False
-                    data = ""
-                    for line in rf:
-                        if ntdata:
-                            if "//" in line:
-                                ntdata = False
-                                break
-                            data += line[9:].replace(" ","")
-                        if "ORIGIN" in line:
-                             ntdata = True
-                    
-                    rf.close() 
-                    if len(data) < 10:
-                          sys.stderr.write( "ERROR: Genbank file %s contains no sequence data\n"%(genbank_file))
-                          sys.exit(1)
-                    genbank_ref1.write(data.upper())
-                    genbank_ref1.close()
-                except IOError:
-                    sys.stderr.write( "ERROR: Genbank file %s not found\n"%(genbank_file))
-                    sys.exit(1)
+                sys.stderr.write( "ERROR: Genbank file %s not found\n"%(genbank_file))
+                sys.exit(1)
                 
             genbank_files_cat = "%s.cat"%(genbank_files[0])
             os.system(ctcmd+"> "+genbank_files_cat)
-            req_params["genbank"] = 1
 
-        elif o in ("-a","--anchorlength"):
-            anchor = a
-        elif o in ("-m","--mumlength"):
-            mum = a
-        elif o in ("-D","--DiagonalDiff"):
-            diagdiff = a
-        elif o in ("-o","--outputDir"):
-            outputDir = a
-        elif o in ("-e","--extend"):
-            extend = True
-        elif o in ("-M","--onlymumi"):
-            mumi_only = True
-        elif o in ("-U","--MUMi"):
-            mumidistance = a
-        elif o in ("-x","--xtrafast"):
-            xtrafast = True
-        elif o in ("-i","--iniFile"):
-            inifile = a
-            inifile_exists = True
-        elif o in ("-c","--curated"):
-            curated = True
-        elif o in ("-n","--alignmentprog"):
-            aligner = a
-            if aligner == "muscle":
-                aligner = "2"
-            elif aligner == "mafft":
-                aligner = "1"
-            elif aligner == "fsa":
-                aligner = "3"
-            elif aligner == "prank":
-                aligner = "4"
-            else:
-                aligner = "2"
-        elif o in ("-p","--threads"):
-            threads = a
-        elif o in ("-P","--max-partition-size"):
-            maxpartition = a
-        elif o in ("-F","--fastmum"):
-            fastmum = True
-        elif o in ("-C","--clusterD"):
-            cluster = a
-        elif o in ("-u","--unaligned"):
-            unaligned = "1"
-        elif o in ("-s","--split"):
-            splitseq = True
-        elif o in ("-l","--layout"):
-            layout = True
-        elif o in ("-z","--minclustersize"):
-            mincluster = a
-        elif o in ("-b","--probe"):
-            probe = True
-
-    if outputDir != "":
-        today = datetime.datetime.now()
-        timestamp = "P_"+today.isoformat().replace("-","_").replace(".","").replace(":","").replace("T","_")
-        outputDir2 = timestamp#outputDir+os.sep+timestamp
+    # Create output dir
+    if outputDir != "[P_CURRDATE_CURRTIME]":
         if outputDir == "." or outputDir == "./" or outputDir == "/":
-            sys.stderr.write( WARNING_YELLOW+"Warning: specified output dir is current working dir! will clobber any parsnp.* results"+ENDC)
+            sys.stderr.write( WARNING_YELLOW+"Warning: specified output dir is current working dir or root dir! will clobber any parsnp.* results"+ENDC)
             outputDir = ""
-
-        elif os.path.exists("%s"%(outputDir)):
-            pass
         else:
-            os.mkdir("%s"%(outputDir))
+            os.mkdirs("%s"%(outputDir), exist_ok=True)
     else:
         today = datetime.datetime.now()
         timestamp = "P_"+today.isoformat().replace("-","_").replace(".","").replace(":","").replace("T","_")
         outputDir = os.getcwd()+os.sep+timestamp
         os.mkdir("%s"%(outputDir))
-
-    if len(opts) < 2:
-        usage()
-        sys.exit(2)
 
     sortem = True
     if len(ref) == 0 and len(genbank_ref) != 0:
@@ -556,13 +623,11 @@ if __name__ == "__main__":
         ref = genbank_ref
         sortem = False
 
-
-
     autopick_ref = False
-    if (len(ref) == 0 and len(query) == 0) or len(seqdir) == "":
+    if (not ref and not query) or not seqdir:
         sys.stderr.write( ERROR_RED+"ERROR: no seqs provided, yet required. exit!\n"+ENDC)
         sys.exit(0)
-    elif len(ref) == 0 and len(query) != 0:
+    elif not ref and query:
         sys.stderr.write( WARNING_YELLOW+"WARNING: no reference genome specified, going to autopick from %s as closest to %s\n"%(seqdir, query)+ENDC)
         autopick_ref = True
         ref = query
@@ -744,13 +809,13 @@ if __name__ == "__main__":
     inifiled = inifile1.read()
     inifiled = inifiled.replace("$REF",ref)
     inifiled = inifiled.replace("$EXTEND","%d"%(extend))
-    inifiled = inifiled.replace("$ANCHORS",anchor)
-    inifiled = inifiled.replace("$MUMS",mum)
-    inifiled = inifiled.replace("$MINCLUSTER",mincluster)
-    inifiled = inifiled.replace("$CLUSTERD",cluster)
-    inifiled = inifiled.replace("$THREADS",threads)
-    inifiled = inifiled.replace("$ALIGNER",aligner)
-    inifiled = inifiled.replace("$DIAGDIFF",diagdiff)
+    inifiled = inifiled.replace("$ANCHORS",str(anchor))
+    inifiled = inifiled.replace("$MUMS",str(mum))
+    inifiled = inifiled.replace("$MINCLUSTER",str(mincluster))
+    inifiled = inifiled.replace("$CLUSTERD",str(cluster))
+    inifiled = inifiled.replace("$THREADS",str(threads))
+    inifiled = inifiled.replace("$ALIGNER",str(aligner))
+    inifiled = inifiled.replace("$DIAGDIFF",str(diagdiff))
     inifiled = inifiled.replace("$RECOMBFILT","%d"%(xtrafast))
     inifiled = inifiled.replace("$OUTDIR",outputDir)
     if fastmum:
