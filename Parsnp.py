@@ -94,7 +94,7 @@ if checkStderr != b'':
     OSTYPE = "Linux"
     sys.stderr.write(WARNING_YELLOW+"Warning: Cannot determine OS, defaulting to %s\n"%(OSTYPE)+ENDC)
 else:
-    OSTYPE = checkStdout.strip()
+    OSTYPE = checkStdout.decode('utf-8').strip()
 
 
 if OSTYPE == "Darwin":
@@ -701,18 +701,14 @@ if __name__ == "__main__":
         ref = seqdir+os.sep+ref
     if 1:
         #ADVAIT EDIT TO FIX HEADER BUG
-        dashcount = 0
         ff = open(ref,'r')
         hdr = ff.readline()
-        if "-" in hdr:
-            dashcount = hdr.count("-")
         if hdr[0] == ">":
             data = ff.read()
-            data = data.replace("\n","")
-            if data.count("-") != dashcount:
+            if data.count("-") > 0:
                 sys.stderr.write( "ERROR: ref genome sequence %s seems to aligned! remove and restart \n"%(ref))
                 sys.exit(1)
-            reflen = len(data)
+            reflen = len(data) - data.count('\n')
         ff.close()
 
     for file in files:
