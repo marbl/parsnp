@@ -4,6 +4,8 @@
 P_**
 **.log
 **.la
+muscle/config/
+muscle/INSTALL
 Makefile
 Makefile.in
 aclocal.m4
