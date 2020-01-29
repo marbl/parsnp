@@ -1,5 +1,4 @@
 cd muscle
-automake
 ./autogen.sh
 ./configure --prefix=`pwd`
 make install
