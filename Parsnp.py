@@ -4,6 +4,7 @@
 import os, sys, string, getopt, random,subprocess, time, glob,operator, math, datetime,numpy #pysam
 import shutil
 import re
+import logging
 import argparse
 import signal
 import inspect
@@ -32,6 +33,9 @@ PHI_WINDOWSIZE = 1000
 TOTSEQS=0
 PARSNP_DIR = sys.path[0]
 
+
+############################################# Logging ##############################################
+BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
 CSI=""#"\x1B["
 reset=""#CSI+"m"
 BOLDME = ""#CSI+'\033[1m'
@@ -41,6 +45,50 @@ SKIP_GRAY = ""#CSI+'\033[37m'
 WARNING_YELLOW = ""#CSI+'\033[93m'
 ERROR_RED = ""#CSI+'\033[91m'
 ENDC = ""#CSI+'0m'
+#The background is set with 40 plus the number of the color, and the foreground with 30
+
+#These are the sequences need to get colored ouput
+RESET_SEQ = "\033[0m"
+COLOR_SEQ = "\033[1;%dm"
+BOLD_SEQ = "\033[1m"
+
+def formatter_message(message, use_color = True):
+    if use_color:
+        message = message.replace("$RESET", RESET_SEQ).replace("$BOLD", BOLD_SEQ)
+    else:
+        message = message.replace("$RESET", "").replace("$BOLD", "")
+    return message
+
+COLORS = {
+    'DEBUG': BLUE,
+    'INFO': WHITE,
+    'WARNING': YELLOW,
+    'ERROR': RED,
+    'CRITICAL': RED
+}
+
+class ColoredFormatter(logging.Formatter):
+    def __init__(self, msg, datefmt = None, use_color = True):
+        logging.Formatter.__init__(self, fmt=msg, datefmt=datefmt)
+        self.use_color = use_color
+
+    def format(self, record):
+        levelname = record.levelname
+        if self.use_color and levelname in COLORS:
+            levelname_color = COLOR_SEQ % (30 + COLORS[levelname]) + levelname + RESET_SEQ
+            record.levelname = levelname_color
+        return logging.Formatter.format(self, record)
+logger = logging.getLogger("Parsnp")
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+# create formatter and add it to the handlers
+formatter = ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s',
+                             datefmt="%H:%M:%S")
+ch.setFormatter(formatter)
+# add the handlers to the logger
+logger.addHandler(ch)
+####################################################################################################
 
 try:
     os.environ["PARSNPDIR"]
@@ -93,7 +141,7 @@ def get_os():
     (checkStdout, checkStderr) = p.communicate()
     if checkStderr != b'':
         OSTYPE = "Linux"
-        sys.stderr.write(WARNING_YELLOW+"Warning: Cannot determine OS, defaulting to %s\n"%(OSTYPE)+ENDC)
+        logger.warning("Cannot determine OS, defaulting to %s"%(OSTYPE))
     else:
         OSTYPE = checkStdout.decode('utf-8').strip()
     if OSTYPE == "Darwin":
@@ -152,11 +200,11 @@ def parallelWrapper(params):
         return result
    except KeyboardInterrupt:
         result["status"] = 0
-        sys.stderr.write("Keyboard interrupt in thread %d, quitting\n"%(jobID))
+        logger.info("Keyboard interrupt in thread %d, quitting\n"%(jobID))
         return result
    except Exception:
         result["status"] = 0
-        sys.stderr.write( "Other error in thread %d, quitting\n"%(jobID))
+        logger.info("Other error in thread %d, quitting\n"%(jobID))
         return result
     
 def parallelFtWrapper(params):
@@ -170,11 +218,11 @@ def parallelFtWrapper(params):
         return result
    except KeyboardInterrupt:
         result["status"] = 0
-        sys.stderr.write( "Keyboard error in thread %d, quitting\n"%(jobID))
+        logger.info("Keyboard interrupt in thread %d, quitting\n"%(jobID))
         return result
    except Exception:
         result["status"] = 0
-        sys.stderr.write( "Other error in thread %d, quitting\n"%(jobID))
+        logger.info("Other error in thread %d, quitting\n"%(jobID))
         return result
 
 def parallelPhiWrapper(params):
@@ -191,11 +239,11 @@ def parallelPhiWrapper(params):
         return result
    except KeyboardInterrupt:
         result["status"] = 0
-        sys.stderr.write( "Keyboard error in thread %d, quitting\n"%(jobID))
+        logger.info("Keyboard interrupt in thread %d, quitting\n"%(jobID))
         return result
    except Exception:
         result["status"] = 0
-        sys.stderr.write( "Other error in thread %d, quitting\n"%(jobID))
+        logger.info("Other error in thread %d, quitting\n"%(jobID))
         return result
 
                                                                                  
@@ -207,20 +255,17 @@ def run_command(command,ignorerc=0):
    fstdout,fstderr = p.communicate()
    rc = p.returncode
    if VERBOSE:
-      sys.stderr.write( fstderr)
+      logging.debug(fstderr)
 
    if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
-      sys.stderr.write(ERROR_RED+"**ERROR**"+ENDC+"\n")
-      sys.stderr.write( "The following command failed:\n")
-      sys.stderr.write( ">>%s\n"%(command))
-      sys.stderr.write( "Please veryify input data and restart Parsnp. If the problem persists please contact the Parsnp development team.\n")
-      sys.stderr.write(ERROR_RED+"**ERROR**"+ENDC+"\n")
-      sys.stderr.write( "\n")
-      sys.stderr.write( "\n")
+      logger.error("""The following command failed:
+      >>$ {}
+      Please veryify input data and restart Parsnp. 
+      If the problem persists please contact the Parsnp development team.""".format(command))
       sys.exit(rc)
 
-sys.stderr.write( BOLDME+"|--Parsnp %s--|\n"%(VERSION)+ENDC)
-sys.stderr.write( BOLDME+"For detailed documentation please see --> http://harvest.readthedocs.org/en/latest\n"+ENDC)
+sys.stderr.write( BOLDME+"|--Parsnp %s--|\n"%(VERSION))
+sys.stderr.write( BOLDME+"For detailed documentation please see --> http://harvest.readthedocs.org/en/latest\n")
 
 
 if not os.path.lexists("%s/parsnp"%(PARSNP_DIR)):
@@ -247,9 +292,9 @@ if os.path.exists("%s/MUMmer/nucmer_run"%(PARSNP_DIR)):
     ff.write(ffd)
     ff.close()
 
-def is_valid_file(parser, arg):
+def is_valid_file_path(parser, arg):
     if not os.path.exists(arg) and arg != "!" and arg != None and arg != "":
-        parser.error("The file %s does not exist!" % arg)
+        parser.critical("The file %s does not exist!" % arg)
     else:
         return arg
 
@@ -287,7 +332,7 @@ def parse_args():
     input_output_args.add_argument(
             "-r", 
             "--reference",
-            type = lambda fname: is_valid_file(parser, fname), 
+            type = lambda fname: is_valid_file_path(parser, fname), 
             default = "",
             help = "(r)eference genome (set to ! to pick random one from sequence dir)")
     #TODO Accept as space-separated input and parse automatically w/ argparse
@@ -531,7 +576,7 @@ if __name__ == "__main__":
                     seqnum += 1
             rf.close()
         except IOError:
-            sys.stderr.write( "ERROR: Reference genome file %s not found\n"%(ref))
+            logger.critical(" Reference genome file %s not found\n"%(ref))
             sys.exit(1)       
     
     # Validate genbank files
@@ -559,10 +604,10 @@ if __name__ == "__main__":
                         if "VERSION" and "GI" in giline:
                             break
                         elif giline == None or giline == "":
-                            sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                            logger.critical("ERROR: Genbank file %s malformatted \n"%(genbank_file))
                             sys.exit(1)
                     if len(giline) <= 2:
-                        sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                        logger.critical("ERROR: Genbank file %s malformatted \n"%(genbank_file))
                         sys.exit(1)
                     genbank_ref1.write(">gi|"+giline.split("GI:")[-1])
                     first = False
@@ -574,10 +619,10 @@ if __name__ == "__main__":
                         if "VERSION" and "GI" in giline:
                             break
                         elif giline == None or giline == "":
-                            sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                            logger.critical("ERROR: Genbank file %s malformatted \n"%(genbank_file))
                             sys.exit(1)
                     if len(giline) <= 2:
-                        sys.stderr.write( "ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                        logger.critical("ERROR: Genbank file %s malformatted \n"%(genbank_file))
                         sys.exit(1)
                     genbank_ref1.write(">gi|"+giline.split("GI:")[-1])
                 ntdata = False
@@ -593,12 +638,12 @@ if __name__ == "__main__":
                 
                 rf.close() 
                 if len(data) < 10:
-                      sys.stderr.write( "ERROR: Genbank file %s contains no sequence data\n"%(genbank_file))
+                      logger.critical("Genbank file %s contains no sequence data\n"%(genbank_file))
                       sys.exit(1)
                 genbank_ref1.write(data.upper())
                 genbank_ref1.close()
             except IOError:
-                sys.stderr.write( "ERROR: Genbank file %s not found\n"%(genbank_file))
+                logger.critical("Genbank file %s not found\n"%(genbank_file))
                 sys.exit(1)
                 
             genbank_files_cat = "%s.cat"%(genbank_files[0])
@@ -607,10 +652,9 @@ if __name__ == "__main__":
     # Create output dir
     if outputDir != "[P_CURRDATE_CURRTIME]":
         if outputDir == "." or outputDir == "./" or outputDir == "/":
-            sys.stderr.write( WARNING_YELLOW+"Warning: specified output dir is current working dir or root dir! will clobber any parsnp.* results"+ENDC)
+            logger.warning("Specified output dir is current working dir or root dir! will clobber any parsnp.* results")
             outputDir = ""
         else:
-            print(outputDir)
             os.makedirs(outputDir, exist_ok=True)
     else:
         today = datetime.datetime.now()
@@ -626,45 +670,49 @@ if __name__ == "__main__":
 
     autopick_ref = False
     if (not ref and not query) or not seqdir:
-        sys.stderr.write(ERROR_RED+"ERROR: no seqs provided, yet required. exit!\n"+ENDC)
+        logger.critical("No seqs provided, yet required. exit!")
         sys.exit(0)  # TODO Should this exit value be 0?
 
     elif not ref and query:
-        sys.stderr.write(WARNING_YELLOW+"WARNING: no reference genome specified, going to autopick from %s as closest to %s\n"%(seqdir, query)+ENDC)
+        logger.warning("No reference genome specified, going to autopick from %s as closest to %s\n"%(seqdir, query))
         autopick_ref = True
         ref = query
 
-    print((len(outputDir)+17)*"*")
-    print(BOLDME+"SETTINGS:"+ENDC)
-    if ref != "!":
-        print("|-"+BOLDME+"refgenome:\t%s"%(ref)+ENDC)
-    else:
-        print("|-"+BOLDME+"refgenome:\t%s"%("autopick")+ENDC)
-    print("|-"+BOLDME+"aligner:\tlibMUSCLE"+ENDC)
-    print("|-"+BOLDME+"seqdir:\t%s"%(seqdir)+ENDC)
-    print("|-"+BOLDME+"outdir:\t%s"%(outputDir)+ENDC)
-    print("|-"+BOLDME+"OS:\t\t%s"%(OSTYPE)+ENDC)
-    print("|-"+BOLDME+"threads:\t%s"%(threads)+ENDC)
-    print((len(outputDir)+17)*"*")
+    logger.info("""
+{}
+SETTINGS:
+|-refgenome:\t{}
+|-alginer:\t{}
+|-seqdir:\t{}
+|-outdir:\t{}
+|-OS:\t{}
+|-threads:\t{}
+{}
+    """.format(
+        (len(outputDir)+17)*"*",
+        "autopick" if ref == '!' else ref,
+        args.alignment_program,
+        seqdir,
+        outputDir,
+        OSTYPE,
+        threads,
+        (len(outputDir)+17)*"*"))
 
-    print("\n<<Parsnp started>>\n")
+        
+
+    logger.info("<<Parsnp started>>")
 
     #1)read fasta files (contigs/scaffolds/finished/DBs/dirs)
-    sys.stderr.write( "-->Reading Genome (asm, fasta) files from %s..\n"%(seqdir))
+    logger.info( "Reading Genome (asm, fasta) files from %s.."%(seqdir))
     try:
         input_files = [os.path.join(seqdir, f) for f in os.listdir(seqdir) if 
                 os.path.isfile(os.path.join(seqdir, f)) and f[0] != '.' and f[-1] != '~']
-        sys.stderr.write( "  |->["+OK_GREEN+"OK"+ENDC+"]\n")
     except IOError:
-        sys.stderr.write( ERROR_RED+"ERROR: problem reading files from %s\n"%(seqdir)+ENDC)
+        logger.critical("Problem reading files from %s"%(seqdir))
         sys.exit(1) 
-    sys.stderr.write( "-->Reading Genbank file(s) for reference (.gbk) %s..\n"%(genbank_files_str))
+    logger.info("Reading Genbank file(s) for reference (.gbk) %s..."%(genbank_files_str))
     if len(genbank_file) == 0:
-        sys.stderr.write( "  |->["+WARNING_YELLOW+"WARNING"+ENDC+"]"+": no genbank file provided for reference annotations, skipping..\n"+ENDC)
-    elif not os.path.exists(genbank_file):
-        sys.stderr.write( "  |->["+ERROR_RED+"ERROR"+ENDC+"]"+": provided genbank file does not exist, skipping..\n"+ENDC)
-    else:
-        sys.stderr.write( "  |->["+OK_GREEN+"OK"+ENDC+"]\n")
+        logger.warning("No genbank file provided for reference annotations, skipping..")
 
     allfiles = []
     fnaf_sizes = {}
@@ -680,13 +728,13 @@ if __name__ == "__main__":
         hdr = ff.readline()
         seq = ff.read()
         if hdr[0] != ">":
-            sys.stderr.write("ERROR: {} has improperly formatted header.".format(input_file))
+            logger.critical(" {} has improperly formatted header.".format(input_file))
             sys.exit(1)
         if '>' in seq:
-            sys.stderr.write("ERROR: Multiple sequences present in file {}".format(input_file))
+            logger.critical(" Multiple sequences present in file {}".format(input_file))
             sys.exit(1)
         if '-' in seq:
-            sys.stderr.write("ERROR: Genome sequence %s seems to aligned! remove and restart \n"%((input_file)))
+            logger.critical(" Genome sequence %s seems to aligned! remove and restart \n"%((input_file)))
             sys.exit(1)
         reflen = len(seq) - seq.count('\n')
 
@@ -696,17 +744,17 @@ if __name__ == "__main__":
         seq = ff.read()
         name_flag = True
         if hdr[0] != ">":
-            sys.stderr.write("ERROR: {} has improperly formatted header.".format(input_file))
+            logger.critical(" {} has improperly formatted header.".format(input_file))
             sys.exit(1)
         if '>' in seq:
-            sys.stderr.write("ERROR: Multiple sequences present in file {}".format(input_file))
+            logger.critical(" Multiple sequences present in file {}".format(input_file))
             sys.exit(1)
         if '-' in seq:
-            sys.stderr.write("ERROR: Genome sequence %s seems to aligned! remove and restart \n"%((input_file)))
+            logger.critical(" Genome sequence %s seems to aligned! remove and restart \n"%((input_file)))
             sys.exit(1)
         seqlen = len(seq) - seq.count('\n')
         if seqlen <= 20:
-            sys.stderr.write("WARNING: File %s is less than or equal to 20bp in length. Skip!\n"%(input_file))
+            logger.warning(" File %s is less than or equal to 20bp in length. Skip!\n"%(input_file))
             continue
         sizediff = float(reflen)/float(seqlen) 
         
@@ -714,11 +762,11 @@ if __name__ == "__main__":
         # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
         if not probe:
             if sizediff <= 0.6 or sizediff >= 1.4:
-                sys.stderr.write("WARNING: File %s is too short or too long compared to reference. Skip!\n"%(input_file))
+                logger.warning(" File %s is too short or too long compared to reference. Skip!\n"%(input_file))
                 continue
         else:
             if sizediff >= 1.4:
-                sys.stderr.write("WARNING: File %s is too short compared to reference genome. Skip!\n"%(input_file))
+                logger.warning(" File %s is too short compared to reference genome. Skip!\n"%(input_file))
                 continue
 
         fnafiles.append(input_file)
@@ -776,7 +824,6 @@ if __name__ == "__main__":
     else:
         inifiled = inifiled.replace("$PARTPOS","%s"%(maxpartition))
 
-    finalfiles = []
     #2)get near neighbors (mumi distance)
     if os.path.exists(os.path.join(outputDir, "alltogether.fasta")):
         os.remove(os.path.join(outputDir, "alltogether.fasta"))
@@ -798,7 +845,8 @@ if __name__ == "__main__":
     use_parsnp_mumi = True
     if not inifile_exists:
         if len(fnafiles) < 1 or ref == "":
-            sys.stderr.write( "Parsnp requires 2 or more genomes to run, exiting\n")
+            logger.critical("Parsnp requires 2 or more genomes to run, exiting")
+            logger.debug("Only files found are: ")
             print(fnafiles, end =' ') 
             print(ref)
             #TODO Why exit 0 here?
@@ -815,12 +863,12 @@ if __name__ == "__main__":
         inifile_mumi.close()
     mumi_dict = {}
     if use_parsnp_mumi and not curated:
-        sys.stderr.write( "-->Calculating MUMi..\n")
+        logger.info("Calculating MUMi...")
         if not inifile_exists:
             command = "%s/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
         else:
             if not os.path.exists(inifile):
-                sys.stderr.write( "Error: ini file %s does not exist!\n"%(inifile))
+                logger.critical("ini file %s does not exist!\n"%(inifile))
                 sys.exit(1)
             command = "%s/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
         run_command(command)
@@ -838,7 +886,7 @@ if __name__ == "__main__":
             i = 0
             for f in fnafiles:
                 mumi_dict[i] = 1
-        print("  |->["+OK_GREEN+"OK"+ENDC+"]")
+        print("  |->["+OK_GREEN+"OK"+"]")
     finalfiles = []
     lowest_mumi = 100
     auto_ref = ""
@@ -932,10 +980,11 @@ if __name__ == "__main__":
         #print ref
     #print ref
     inifiled_closest = inifiled
+    #TODO This code is duplicated
     if not inifile_exists:
         if len(finalfiles) < 1 or ref == "":
-            sys.stderr.write( "ERROR: Parsnp requires 2 or more genomes to run, exiting\n")
-            #TODO Why not exit 1?
+            logger.critical("Parsnp requires 2 or more genomes to run, exiting\n")
+            sys.exit(1)
     
         file_string = ""
         cnt = 1
@@ -973,7 +1022,7 @@ if __name__ == "__main__":
     
 
     #3)run parsnp (cores, grid?)
-    print("-->Running Parsnp multi-MUM search and libMUSCLE aligner..")
+    logger.info("Running Parsnp multi-MUM search and libMUSCLE aligner...")
     blocks_dir = os.path.join(outputDir, "blocks")
     if not os.path.exists(blocks_dir):
         os.mkdir(blocks_dir)
@@ -993,7 +1042,7 @@ if __name__ == "__main__":
                     command = "%s/parsnp %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
             else:
                 if not os.path.exists(inifile):
-                    sys.stderr.write("Error: ini file %s does not exist!\n"%(inifile))
+                    logger.error(" ini file %s does not exist!\n"%(inifile))
                     sys.exit(1)
                 command = "%s/parsnp %s"%(PARSNP_DIR,inifile)
             run_command(command)
@@ -1002,7 +1051,7 @@ if __name__ == "__main__":
                 successful_run = False
                 runcnt += 1
                 if runcnt >= 2:
-                    sys.stderr.write("Error: set of recruited genomes are too divergent for parsnp, please reduce MUMi (%f) and relaunch\n"%(float(mumidistance)))
+                    logger.error(" set of recruited genomes are too divergent for parsnp, please reduce MUMi (%f) and relaunch\n"%(float(mumidistance)))
                     sys.exit(1)                
             else:
                 successful_run = True
@@ -1031,18 +1080,19 @@ if __name__ == "__main__":
                 totlength += int(line.split(":",1)[-1].replace("\n","").split("bps")[0])
                 totseqs += 1
     except IOError:
-        print(ERROR_RED+"parsnpAligner.log missing, parsnpAligner failed, exiting.."+ENDC)
+        logger.critical("ParsnpAligner.log missing, parsnpAligner failed.")
         sys.exit(1)
 
     #update thresholds
     if coverage <= 0.01:
-        sys.stderr.write( "  |->["+ERROR_RED+"ERROR"+ENDC+"]"+": aligned regions cover less than 1% of reference genome, something is not right.. please adjust params and rerun. If problem persists please contact developers (treangen@gmail.com)"+ENDC)
+        logger.critical("""Aligned regions cover less than 1% of reference genome, something is not right...
+Adjust params and rerun. If issue persists please submit a GitHub issue""")
         sys.exit(1)
     elif coverage < 0.1:
-        sys.stderr.write( "  |->["+WARNING_YELLOW+"WARNING"+ENDC+"]"+": aligned regions cover less than 10% of reference genome! please verify recruited genomes are all strain of interest"+ENDC)
+        logger.warning("""Aligned regions cover less than 10% of reference genome! 
+Please verify recruited genomes are all strain of interest""")
     else:
         pass
-    print("  |->["+OK_GREEN+"OK"+ENDC+"]")
     t2 = time.time()
     elapsed = float(t2)-float(t1)
     #print("-->Getting list of LCBs.."
@@ -1057,7 +1107,7 @@ if __name__ == "__main__":
                 lf = open(f, 'r')
                 header = lf.readline()
                 if header[0] != ">":
-                    sys.stderr.write( "Error with LCB: %s\n"%(f))
+                    logger.error("Error with LCB: %s\n"%(f))
                     continue
                 
                 inf = header.split("+",1)[0]
@@ -1086,7 +1136,7 @@ if __name__ == "__main__":
     recombination_sites = {}
     bedfile = ""
     bedfile_dict = {}
-    print("-->Running PhiPack on LCBs to detect recombination..")
+    logger.info("Running PhiPack on LCBs to detect recombination...")
     if run_recomb_filter and len(blockfiles) > 0:
 
         bedfile = open(os.path.join(outputDir, "parsnp.rec"), 'w')
@@ -1125,8 +1175,7 @@ if __name__ == "__main__":
                 try:
                     recregions = open(tasks[i["jobID"]]["output"],'r').read()
                 except IOError:
-                    if VERBOSE:
-                        sys.stderr.write( "File %s doesn't exist, no rec regions or error in PhiPack\n"%(tasks[i["jobID"]]["output"]))
+                    logger.error("File %s doesn't exist, no rec regions or error in PhiPack\n"%(tasks[i["jobID"]]["output"]))
                     continue
                 reclines = recregions.split("\n")
                 prevpos = 0
@@ -1150,18 +1199,15 @@ if __name__ == "__main__":
                             bedfile_dict[srpos] = "1\t%s\t%s\tREC\t%.3f\t+\n"%(srpos,pos+50+block_spos,eval)
                         else:
                             chrnum = 1
-                            chr_spos = list(ref_seqs.keys())
-                            for cs in chr_spos:
+                            for cs in ref_seqs:
                                 if block_spos < chr_spos:
                                     chrnum = ref_seqs[cs]
                             bedfile_dict[srpos] = "%d\t%s\t%s\tREC\t%.3f\t+\n"%(chrnum,srpos,pos+50+block_spos,eval)
                              
-
-                    
                 qfile = tasks[i["jobID"]]["query"]
 
             elif i["status"] != 2:
-                sys.stderr.write( "Error: parallel phipack job %d failed\n"%(i["jobID"]))
+                logger.critical("Parallel phipack job %d failed\n"%(i["jobID"]))
                 raise IOError
 
         pool.close()
@@ -1172,10 +1218,6 @@ if __name__ == "__main__":
             bedfile.write(bedfile_dict[key])
         bedfile.close()
 
-    if run_recomb_filter:
-        sys.stderr.write("  |->["+OK_GREEN+"OK"+ENDC+"]\n")
-    else:        
-        sys.stderr.write("  |->["+SKIP_GRAY+"SKIP"+ENDC+"]\n")
     run_lcb_trees = 0
 
     annotation_dict = {}
@@ -1197,14 +1239,13 @@ if __name__ == "__main__":
         run_command("%s/harvest -q -i %s/parsnp.ggr -S "%(PARSNP_DIR,outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
 
     command = "%s/ft -nt -quote -gamma -slow -boot 100 "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
-    print("-->Reconstructing core genome phylogeny..")
+    logger.info("Reconstructing core genome phylogeny...")
     run_command(command)
     #7)reroot to midpoint
     if os.path.exists("outtree"):
-        os.system("rm outtree")
+        os.remove("outtree")
        
     if reroot_tree and len(finalfiles) > 1:
-        #print("-->Midpoint reroot.."
         try:
             mtree = open("%sparsnp.tree"%(outputDir+os.sep), 'r')
             mtreedata = mtree.read()
@@ -1218,63 +1259,59 @@ if __name__ == "__main__":
             mtreef.close()
             os.system("mv %s %s"%(outputDir+os.sep+"parsnp.final.tree",outputDir+os.sep+"parsnp.tree"))
         except IOError:
-            sys.stderr.write( "ERROR: cannot process fasttree output, skipping midpoint reroot..\n")
-    print("  |->["+OK_GREEN+"OK"+ENDC+"]")
+            logger.error("Cannot process fasttree output, skipping midpoint reroot..\n")
 
 
     if 1 or len(use_gingr) > 0:
-        print("-->Creating Gingr input file..")
+        logger.info("Creating Gingr input file..")
         if xtrafast or 1:
             #if newick available, add
             #new flag to update branch lengths
             run_command("%s/harvest --midpoint-reroot -u -q -i "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
  
-    print("  |->["+OK_GREEN+"OK"+ENDC+"]")
 
-    print("-->Calculating wall clock time.. ")
     if float(elapsed)/float(60.0) > 60:
-        print("  |->"+BOLDME+"Aligned %d genomes in %.2f hours"%(totseqs,float(elapsed)/float(3600.0))+ENDC)
+        logger.info("Aligned %d genomes in %.2f hours"%(totseqs,float(elapsed)/float(3600.0)))
     elif float(elapsed) > 60:
-        print("  |->"+BOLDME+"Aligned %d genomes in %.2f minutes"%(totseqs,float(elapsed)/float(60.0))+ENDC)
+        #TODO just format the time to get rid of the above formatting
+        logger.info("Aligned %d genomes in %.2f minutes"%(totseqs,float(elapsed)/float(60.0)))
     else: 
-        print("  |->"+BOLDME+"Aligned %d genomes in %.2f seconds"%(totseqs,float(elapsed))+ENDC)
+        logger.info("Aligned %d genomes in %.2f seconds"%(totseqs,float(elapsed)))
     #cleanup
-    rmfiles = glob.glob(outputDir+os.sep+"*.aln")
+    rmfiles = glob.glob(os.path.join(outputDir, "*.aln"))
     #rmfiles2 = glob.glob(outputDir+os.sep+"blocks/b*/*")
-    rmfiles3 = glob.glob(outputDir+os.sep+"blocks/b*")
-    for file in rmfiles:
-        os.system("rm %s"%(file))
-    for file in rmfiles3:
-        os.system("rm -rf %s"%(file))
+    rmfiles3 = glob.glob(os.path.join(outputDir, "blocks/b*"))
+    for f in rmfiles:
+        os.remove(f)
+    for f in rmfiles3:
+        shutil.rmtree(f)
 
     filepres = 0
-    print(BOLDME+"\n<<Parsnp finished! All output available in %s>>"%(outputDir)+ENDC)
-    print("")
-    print(BOLDME+"Validating output directory contents..."+ENDC)
-    print(BOLDME+"\t1)parsnp.tree:\t\tnewick format tree"+ENDC, end =' ')
+    logger.info("Parsnp finished! All output available in %s"%(outputDir))
+    logger.info("Validating output directory contents...")
+    print("\t1)parsnp.tree:\t\tnewick format tree", end =' ')
     if os.path.exists("%sparsnp.tree"%(outputDir+os.sep)) and os.path.getsize("%sparsnp.tree"%(outputDir+os.sep)) > 0:
-        print("\t\t\t["+OK_GREEN+"OK"+ENDC+"]")
+        print("\t\t\t["+OK_GREEN+"OK"+"]")
         filepres+=1
     else:
-        print("\t|->"+ERROR_RED+"MISSING"+ENDC)
-    print(BOLDME+"\t2)parsnp.ggr:\t\tharvest input file for gingr (GUI)"+ENDC, end =' ')
+        print("\t|->"+ERROR_RED+"MISSING")
+    print(BOLDME+"\t2)parsnp.ggr:\t\tharvest input file for gingr (GUI)", end =' ')
     if os.path.exists("%sparsnp.ggr"%(outputDir+os.sep)) and os.path.getsize("%sparsnp.ggr"%(outputDir+os.sep)) > 0:
-        print("\t["+OK_GREEN+"OK"+ENDC+"]")
+        print("\t["+OK_GREEN+"OK"+"]")
         filepres+=1
     else:
-        print("\t|->"+ERROR_RED+"MISSING"+ENDC)
-    print(BOLDME+"\t3)parsnp.xmfa:\t\tXMFA formatted multi-alignment"+ENDC, end = ' ')
+        print("\t|->"+ERROR_RED+"MISSING")
+    print(BOLDME+"\t3)parsnp.xmfa:\t\tXMFA formatted multi-alignment", end = ' ')
     if os.path.exists("%sparsnp.xmfa"%(outputDir+os.sep)) and os.path.getsize("%sparsnp.xmfa"%(outputDir+os.sep)) > 0:
-        print("\t\t["+OK_GREEN+"OK"+ENDC+"]")
+        print("\t\t["+OK_GREEN+"OK"+"]")
         filepres+=1
     else:
-        print("\t|->"+ERROR_RED+"MISSING"+ENDC)
+        print("\t|->"+ERROR_RED+"MISSING")
     if filepres == 3:
         pass
 
     else:
-        print("\t\t["+ERROR_RED+"Output files missing, something went wrong. Check logs and relaunch or contact developers for assistance"+ENDC+"]")
-    print("")
+        logger.error("Output files missing, something went wrong. Check logs and relaunch or contact developers for assistance"+"]")
     if os.path.exists("%sblocks"%(outputDir+os.sep)):
         os.rmdir("%sblocks"%(outputDir+os.sep))
     if os.path.exists("allmums.out"):
@@ -1315,6 +1352,6 @@ if __name__ == "__main__":
         #check if available first
         rc = 0
         if binary_type == "osx":
-            print(">>Launching gingr..")
+            logger.info("Launching gingr..")
             os.system("open -n %s --args %s/parsnp.ggr"%(use_gingr,outputDir))
 
