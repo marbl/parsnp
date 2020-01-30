@@ -36,8 +36,8 @@ PARSNP_DIR = sys.path[0]
 
 ############################################# Logging ##############################################
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
+#These are the sequences need to get colored ouput
 CSI=""#"\x1B["
-reset=""#CSI+"m"
 BOLDME = ""#CSI+'\033[1m'
 STATUS_BLUE = ""#CSI+'\033[94m'
 OK_GREEN = ""#CSI+'\033[92m'#'32m'
@@ -45,9 +45,6 @@ SKIP_GRAY = ""#CSI+'\033[37m'
 WARNING_YELLOW = ""#CSI+'\033[93m'
 ERROR_RED = ""#CSI+'\033[91m'
 ENDC = ""#CSI+'0m'
-#The background is set with 40 plus the number of the color, and the foreground with 30
-
-#These are the sequences need to get colored ouput
 RESET_SEQ = "\033[0m"
 COLOR_SEQ = "\033[1;%dm"
 BOLD_SEQ = "\033[1m"
@@ -154,7 +151,7 @@ def get_os():
 def handler(signum, frame):
     global SIGINT
     SIGINT = True
-    print('Caught request to terminate by user (CTRL+C), exiting now, bye')
+    logger.critical('Caught request to terminate by user (CTRL+C), exiting now, bye')
     sys.exit(128)
 
 signal.signal(signal.SIGINT, handler)
@@ -875,6 +872,7 @@ SETTINGS:
         try:
             mumif = open(os.path.join(outputDir, "all.mumi"),'r')
             for line in mumif:
+                line = line.rstrip('\n')
                 try:
                     idx, mi = line.split(":")
                     mumi_dict[int(idx)-1] = float(mi)
@@ -903,7 +901,7 @@ SETTINGS:
         mumi_f = open(os.path.join(outputDir, "recruited_genomes.lst"),'w')
         
     if VERBOSE:
-        print("RECRUITED GENOMES:\n")
+        logger.debug("RECRUITED GENOMES:")
 
     sorted_x = sorted(iter(mumi_dict.items()), key=operator.itemgetter(1))
     scnt = 0
