@@ -75,18 +75,10 @@ class ColoredFormatter(logging.Formatter):
             levelname_color = COLOR_SEQ % (30 + COLORS[levelname]) + levelname + RESET_SEQ
             record.levelname = levelname_color
         return logging.Formatter.format(self, record)
-logger = logging.getLogger("Parsnp")
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-# create formatter and add it to the handlers
-formatter = ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s',
-                             datefmt="%H:%M:%S")
-ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(ch)
 ####################################################################################################
 
+
+########################################### Environment ############################################
 try:
     os.environ["PARSNPDIR"]
     PARSNP_DIR = os.environ["PARSNPDIR"]
@@ -126,14 +118,39 @@ if frozenbinary:
          os.environ["LD_LIBRARY_PATH"] = libPath + os.pathsep + oldLDPath
 
 
-t1 = time.time()
+if not os.path.lexists("%s/parsnp"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/parsnp %s/parsnp"%(PARSNP_DIR, PARSNP_DIR))
+if not os.path.lexists("%s/harvest"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/harvest_%s %s/harvest"%(PARSNP_DIR,binary_type,PARSNP_DIR))
+if not os.path.lexists("%s/ft"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/fasttree_%s %s/ft"%(PARSNP_DIR,binary_type,PARSNP_DIR))
+if not os.path.lexists("%s/phiprofile"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/Profile_%s %s/phiprofile"%(PARSNP_DIR,binary_type,PARSNP_DIR))
 
+if not os.path.lexists("%s/nucmer"%(PARSNP_DIR)):
+    os.system("ln -s %s/MUMmer/nucmer %s/nucmer"%(PARSNP_DIR,PARSNP_DIR))
+if not os.path.lexists("%s/show-coords"%(PARSNP_DIR)):
+    os.system("ln -s %s/MUMmer/show-coords %s/show-coords"%(PARSNP_DIR,PARSNP_DIR))
+
+#set MUMmer paths
+if os.path.exists("%s/MUMmer/nucmer_run"%(PARSNP_DIR)):
+    ff = open("%s/MUMmer/nucmer_run"%(PARSNP_DIR))
+    ffd = ff.read()
+    ff.close()
+    ffd = ffd.replace("$MUMMERPATH1",PARSNP_DIR)
+    ff = open("%s/MUMmer/nucmer"%(PARSNP_DIR),'w')
+    ff.write(ffd)
+    ff.close()
+####################################################################################################
+
+
+######################################## Utility Functions #########################################
 def get_os():
     p = subprocess.Popen(
-            "echo `uname`", 
-            shell=True, 
-            stdin=None, 
-            stdout=subprocess.PIPE, 
+            "echo `uname`",
+            shell=True,
+            stdin=None,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
     (checkStdout, checkStderr) = p.communicate()
     if checkStderr != b'':
@@ -183,7 +200,7 @@ def run_bng(query,workingdir):
     command = "%s/run_fasta"%()
     run_command(command, 1)
     os.chdir(currdir)
-    
+
 
 #TODO Merge wrappers
 def parallelWrapper(params):
@@ -203,7 +220,8 @@ def parallelWrapper(params):
         result["status"] = 0
         logger.info("Other error in thread %d, quitting\n"%(jobID))
         return result
-    
+
+
 def parallelFtWrapper(params):
    try:
         jobID = params["jobID"]
@@ -221,6 +239,7 @@ def parallelFtWrapper(params):
         result["status"] = 0
         logger.info("Other error in thread %d, quitting\n"%(jobID))
         return result
+
 
 def parallelPhiWrapper(params):
    try:
@@ -243,11 +262,10 @@ def parallelPhiWrapper(params):
         logger.info("Other error in thread %d, quitting\n"%(jobID))
         return result
 
-                                                                                 
-
 
 def run_command(command,ignorerc=0):
    global SIGINT
+   logger.debug(command)
    p = subprocess.Popen(command, shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE,close_fds=True,executable="/bin/bash")
    fstdout,fstderr = p.communicate()
    rc = p.returncode
@@ -257,43 +275,17 @@ def run_command(command,ignorerc=0):
    if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
       logger.error("""The following command failed:
       >>$ {}
-      Please veryify input data and restart Parsnp. 
+      Please veryify input data and restart Parsnp.
       If the problem persists please contact the Parsnp development team.""".format(command))
       sys.exit(rc)
 
-sys.stderr.write( BOLDME+"|--Parsnp %s--|\n"%(VERSION))
-sys.stderr.write( BOLDME+"For detailed documentation please see --> http://harvest.readthedocs.org/en/latest\n")
-
-
-if not os.path.lexists("%s/parsnp"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/parsnp %s/parsnp"%(PARSNP_DIR, PARSNP_DIR))
-if not os.path.lexists("%s/harvest"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/harvest_%s %s/harvest"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.lexists("%s/ft"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/fasttree_%s %s/ft"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.lexists("%s/phiprofile"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/Profile_%s %s/phiprofile"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-
-if not os.path.lexists("%s/nucmer"%(PARSNP_DIR)):
-    os.system("ln -s %s/MUMmer/nucmer %s/nucmer"%(PARSNP_DIR,PARSNP_DIR))
-if not os.path.lexists("%s/show-coords"%(PARSNP_DIR)):
-    os.system("ln -s %s/MUMmer/show-coords %s/show-coords"%(PARSNP_DIR,PARSNP_DIR))
-
-#set MUMmer paths
-if os.path.exists("%s/MUMmer/nucmer_run"%(PARSNP_DIR)):
-    ff = open("%s/MUMmer/nucmer_run"%(PARSNP_DIR))
-    ffd = ff.read()
-    ff.close()
-    ffd = ffd.replace("$MUMMERPATH1",PARSNP_DIR)
-    ff = open("%s/MUMmer/nucmer"%(PARSNP_DIR),'w')
-    ff.write(ffd)
-    ff.close()
 
 def is_valid_file_path(parser, arg):
     if not os.path.exists(arg) and arg != "!" and arg != None and arg != "":
-        parser.critical("The file %s does not exist!" % arg)
+        logger.critical("The file %s does not exist!" % arg)
     else:
         return arg
+
 
 def is_valid_dir(parser, arg):
     if not os.path.exists(arg):
@@ -301,109 +293,110 @@ def is_valid_dir(parser, arg):
     if len(glob.glob("%s/*"%(arg))) == 0:
         parser.error("The director %s is empty"%(arg))
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="""
-    Parsnp quick start for three example scenarios: 
-    1) With reference & genbank file: 
-    python Parsnp.py -g <reference_genbank_file1,reference_genbank_file2,..> -d <genome_dir> -p <threads> 
-     
+    Parsnp quick start for three example scenarios:
+    1) With reference & genbank file:
+    python Parsnp.py -g <reference_genbank_file1,reference_genbank_file2,..> -d <genome_dir> -p <threads>
+
     2) With reference but without genbank file:
-    python Parsnp.py -r <reference_genome> -d <genome_dir> -p <threads> 
+    python Parsnp.py -r <reference_genome> -d <genome_dir> -p <threads>
 
     3) Autorecruit reference to a draft assembly:
-    python Parsnp.py -q <draft_assembly> -d <genome_db> -p <threads> 
+    python Parsnp.py -q <draft_assembly> -d <genome_db> -p <threads>
     """, formatter_class=argparse.RawTextHelpFormatter)
     #TODO Use lambda to check files and directories
     input_output_args = parser.add_argument_group(title="Input/Output")
     input_output_args.add_argument(
-            "-c", 
-            "--curated", 
-            action = "store_true",
-            help = "(c)urated genome directory, use all genomes in dir and ignore MUMi?")
+        "-c",
+        "--curated",
+        action = "store_true",
+        help = "(c)urated genome directory, use all genomes in dir and ignore MUMi?")
     input_output_args.add_argument(
-            "-d", 
-            "--sequence-dir",
-            "--sequenceDir",
-            type = str, 
-            help = "(d)irectory containing genomes/contigs/scaffolds") 
+        "-d",
+        "--sequences",
+        type = str,
+        nargs = '*',
+        help = "A list of files containing genomes/contigs/scaffolds")
     input_output_args.add_argument(
-            "-r", 
-            "--reference",
-            type = lambda fname: is_valid_file_path(parser, fname), 
-            default = "",
-            help = "(r)eference genome (set to ! to pick random one from sequence dir)")
+        "-r",
+        "--reference",
+        type = lambda fname: is_valid_file_path(parser, fname),
+        default = "",
+        help = "(r)eference genome (set to ! to pick random one from sequence dir)")
     #TODO Accept as space-separated input and parse automatically w/ argparse
     input_output_args.add_argument(
-            "-g", 
-            "--genbank",
-            type = str, 
-            default = "",
-            help = "Genbank file(s) (gbk), comma separated list")
+        "-g",
+        "--genbank",
+        type = str,
+        default = "",
+        help = "Genbank file(s) (gbk), comma separated list")
     input_output_args.add_argument(
-            "-o", 
-            "--output-dir",
-            type = str, 
-            default = "[P_CURRDATE_CURRTIME]")
+        "-o",
+        "--output-dir",
+        type = str,
+        default = "[P_CURRDATE_CURRTIME]")
     input_output_args.add_argument(
-            "-q", 
-            "--query",
-            type = str, 
-            help = "Specify (assembled) query genome to use, in addition to genomes found in genome dir")
+        "-q",
+        "--query",
+        type = str,
+        help = "Specify (assembled) query genome to use, in addition to genomes found in genome dir")
 
     MUMi_args = parser.add_argument_group(title="MUMi")
     MUMi_mutex_args = MUMi_args.add_mutually_exclusive_group()
     #TODO whats the default?
     MUMi_mutex_args.add_argument(
-            "-U",
-            "--max-mumi-distr-dist",
-            "--MUMi",
-            type = float, 
-            default = 0.5,
-            help = "Max MUMi distance value for MUMi distribution")
+        "-U",
+        "--max-mumi-distr-dist",
+        "--MUMi",
+        type = float,
+        default = 0.5,
+        help = "Max MUMi distance value for MUMi distribution")
     #TODO Not parsed in current parsnp version and had a duplicate -i flag. Is this no longer used?
     MUMi_mutex_args.add_argument(
-            "-mmd", 
-            "--max-mumi-distance",
-            type = float, 
-            help = "Max MUMi distance (default: autocutoff based on distribution of MUMi values)")
+        "-mmd",
+        "--max-mumi-distance",
+        type = float,
+        help = "Max MUMi distance (default: autocutoff based on distribution of MUMi values)")
     MUMi_args.add_argument(
-            "-F",
-            "--fastmum",
-            action = "store_true",
-            help = "Fast MUMi calculation")
+        "-F",
+        "--fastmum",
+        action = "store_true",
+        help = "Fast MUMi calculation")
     MUMi_args.add_argument(
-            "-M", 
-            "--mumi_only",
-            "--onlymumi",
-            action = "store_true",
-            help = "Calculate MUMi and exit? overrides all other choices!")
+        "-M",
+        "--mumi_only",
+        "--onlymumi",
+        action = "store_true",
+        help = "Calculate MUMi and exit? overrides all other choices!")
 
     MUM_search_args = parser.add_argument_group(title="MUM search")
     #new, default to lower, 12-17
     MUM_search_args.add_argument(
-            "-a", 
-            "--min-anchor-length",
-            "--anchorlength",
-            type = str,
-            default = "1.1*(Log(S))",
-            help = "Min (a)NCHOR length (default = 1.1*(Log(S)))")
+        "-a",
+        "--min-anchor-length",
+        "--anchorlength",
+        type = str,
+        default = "1.1*(Log(S))",
+        help = "Min (a)NCHOR length (default = 1.1*(Log(S)))")
     MUM_search_args.add_argument(
-            "-C", 
-            "--max-cluster-d",
-            "--clusterD",
-            type = int,
-            default = 300,
-            help = "Maximal cluster D value")
+        "-C",
+        "--max-cluster-d",
+        "--clusterD",
+        type = int,
+        default = 300,
+        help = "Maximal cluster D value")
     MUM_search_args.add_argument(
-            "-z", 
-            "--min-cluster-size",
-            "--minclustersize",
-            type = int,
-            default = 21,
-            help = "Minimum cluster size")
+        "-z",
+        "--min-cluster-size",
+        "--minclustersize",
+        type = int,
+        default = 21,
+        help = "Minimum cluster size")
     #TODO -z was a duplicate flag but no longer parsed as min-lcb-size in the current parsnp version
     # MUM_search_args.add_argument(
-            # "-z", 
+            # "-z",
             # "--min-lcb-size",
             # type = int,
             # default = 25,
@@ -411,26 +404,26 @@ def parse_args():
 
     LCB_alignment_args = parser.add_argument_group(title="LCB alignment")
     LCB_alignment_args.add_argument(
-            "-D",
-            "--max-diagonal-difference",
-            "--DiagonalDiff",
-            metavar = "MAX_DIAG_DIFF",
-            type = str,
-            default="0.12",
-            help = "Maximal diagonal difference. Either percentage (e.g. 0.2) or bp (e.g. 100bp)")    
+        "-D",
+        "--max-diagonal-difference",
+        "--DiagonalDiff",
+        metavar = "MAX_DIAG_DIFF",
+        type = str,
+        default="0.12",
+        help = "Maximal diagonal difference. Either percentage (e.g. 0.2) or bp (e.g. 100bp)")
     LCB_alignment_args.add_argument(
-            "-n",
-            "--alignment-program",
-            "--alignmentprog",
-            type = str,
-            choices = list(ALIGNER_TO_IDX.keys()),
-            default = "muscle",
-            help = "Alignment program to use")
+        "-n",
+        "--alignment-program",
+        "--alignmentprog",
+        type = str,
+        choices = list(ALIGNER_TO_IDX.keys()),
+        default = "muscle",
+        help = "Alignment program to use")
     LCB_alignment_args.add_argument(
-            "-u",
-            "--unaligned",
-            action = "store_true",
-            help = "Ouput unaligned regions")
+        "-u",
+        "--unaligned",
+        action = "store_true",
+        help = "Ouput unaligned regions")
 
     recombination_args = parser.add_argument_group("Recombination filtration")
     #TODO -x was a duplicate flag but no longer parsed as filter-phipack-snps in the current parsnp version
@@ -442,71 +435,76 @@ def parse_args():
 
     probe_design_args = parser.add_argument_group("Probe design")
     probe_design_args.add_argument(
-            "-b",
-            "--probe",
-            action = "store_true",
-            help = "Remove genome length constraints to search for MUMs in concatenated sequences much larger than reference")
+        "-b",
+        "--probe",
+        action = "store_true",
+        help = "Remove genome length constraints to search for MUMs in concatenated sequences much larger than reference")
 
     misc_args = parser.add_argument_group("Misc")
     misc_args.add_argument(
-            "-p",
-            "--threads",
-            type = int,
-            default = 1,
-            help = "Number of threads to use")
+        "-p",
+        "--threads",
+        type = int,
+        default = 1,
+        help = "Number of threads to use")
     misc_args.add_argument(
-            "-P",
-            "--max-partition-size",
-            type = int,
-            default = 15000000,
-            help = "Max partition size (limits memory usage)")
+        "-P",
+        "--max-partition-size",
+        type = int,
+        default = 15000000,
+        help = "Max partition size (limits memory usage)")
     misc_args.add_argument(
-            "-v",
-            "--verbose",
-            action = "store_true",
-            help = "Verbose output")
+        "-v",
+        "--verbose",
+        action = "store_true",
+        help = "Verbose output")
     misc_args.add_argument(
-            "-V",
-            "--version",
-            action = "version",
-            version = "%(prog)s " + __version__)
+        "-V",
+        "--version",
+        action = "version",
+        version = "%(prog)s " + __version__)
 
     todo_args = parser.add_argument_group("Need to be placed in a group")
     todo_args.add_argument(
-            "-e",
-            "--extend",
-            action = "store_true")
+        "-e",
+        "--extend",
+        action = "store_true")
     todo_args.add_argument(
-            "-l",
-            "--layout",
-            action = "store_true")
+        "-l",
+        "--layout",
+        action = "store_true")
     todo_args.add_argument(
-            "-x",
-            "--xtrafast",
-            action = "store_true")
+        "-x",
+        "--xtrafast",
+        action = "store_true")
     todo_args.add_argument(
-            "-s",
-            "--split",
-            action = "store_true",
-            help = "Split genomes by n's")
+        "-s",
+        "--split",
+        action = "store_true",
+        help = "Split genomes by n's")
     todo_args.add_argument(
-            "-i",
-            "--ini-file",
-            "--inifile",
-            type = str)
+        "-i",
+        "--ini-file",
+        "--inifile",
+        type = str)
     todo_args.add_argument(
-            "-m", 
-            "--mum-length",
-            "--mumlength",
-            type = str, 
-            default = "1.1*(Log(S))",
-            help = "TODO!!!")
+        "-m",
+        "--mum-length",
+        "--mumlength",
+        type = str,
+        default = "1.1*(Log(S))",
+        help = "TODO!!!")
     return parser.parse_args()
-
+####################################################################################################
 #print("-g = <bool>: auto-launch (g)ingr? (default = NO)"
 
 
 if __name__ == "__main__":
+    t1 = time.time()
+    sys.stderr.write( BOLDME+"|--Parsnp %s--|\n"%(VERSION))
+    sys.stderr.write( BOLDME+"For detailed documentation please see --> http://harvest.readthedocs.org/en/latest\n")
+
+
     parsnp_dir= sys.path[0]
     #print parsnp_dir
     #PARSNP_DIR = parsnp_dir
@@ -516,10 +514,10 @@ if __name__ == "__main__":
     OSTYPE, BINARY_TYPE = get_os()
     args = parse_args()
     currdir = os.getcwd()
-    VERBOSE = args.verbose
+    logging_level = logging.DEBUG if args.verbose else logging.INFO
     ref = args.reference
+    input_files = args.sequences
     query = args.query
-    seqdir = args.sequence_dir
     anchor = args.min_anchor_length
     mum = args.mum_length
     maxpartition = args.max_partition_size
@@ -554,6 +552,18 @@ if __name__ == "__main__":
     multifasta = False
     ref_seqs = {}
 
+    # Instantiate logger
+    logger = logging.getLogger("Parsnp")
+    logger.setLevel(logging_level)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging_level)
+    # create formatter and add it to the handlers
+    formatter = ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s',
+                                 datefmt="%H:%M:%S")
+    ch.setFormatter(formatter)
+    # add the handlers to the logger
+    logger.addHandler(ch)
+
     # Parse reference if necessary
     if ref and ref != "!":
         try:
@@ -574,15 +584,15 @@ if __name__ == "__main__":
             rf.close()
         except IOError:
             logger.critical(" Reference genome file %s not found\n"%(ref))
-            sys.exit(1)       
-    
+            sys.exit(1)
+
     # Validate genbank files
     #TODO Make this a function
     if args.genbank:
         genbank_files_str = args.genbank
         genbank_files = genbank_files_str.split(",")
         ctcmd = "cat "
-        
+
         first = True
         #genbank_ref = ""
         for genbank_file in genbank_files_str.split(","):
@@ -590,7 +600,7 @@ if __name__ == "__main__":
                 continue
             ctcmd += genbank_file + " "
             try:
-                #parse out reference, starts at ORIGIN ends at //, remove numbers, 
+                #parse out reference, starts at ORIGIN ends at //, remove numbers,
                 rf = open(genbank_file,'r')
                 if first:
                     genbank_ref = genbank_file+".fna"
@@ -632,8 +642,8 @@ if __name__ == "__main__":
                         data += line[9:].replace(" ","")
                     if "ORIGIN" in line:
                          ntdata = True
-                
-                rf.close() 
+
+                rf.close()
                 if len(data) < 10:
                       logger.critical("Genbank file %s contains no sequence data\n"%(genbank_file))
                       sys.exit(1)
@@ -642,7 +652,7 @@ if __name__ == "__main__":
             except IOError:
                 logger.critical("Genbank file %s not found\n"%(genbank_file))
                 sys.exit(1)
-                
+
             genbank_files_cat = "%s.cat"%(genbank_files[0])
             os.system(ctcmd+"> "+genbank_files_cat)
 
@@ -666,10 +676,9 @@ if __name__ == "__main__":
         sortem = False
 
     autopick_ref = False
-    if (not ref and not query) or not seqdir:
+    if (not ref and not query) or not input_files:
         logger.critical("No seqs provided, yet required. exit!")
         sys.exit(0)  # TODO Should this exit value be 0?
-
     elif not ref and query:
         logger.warning("No reference genome specified, going to autopick from %s as closest to %s\n"%(seqdir, query))
         autopick_ref = True
@@ -680,7 +689,6 @@ if __name__ == "__main__":
 SETTINGS:
 |-refgenome:\t{}
 |-alginer:\t{}
-|-seqdir:\t{}
 |-outdir:\t{}
 |-OS:\t{}
 |-threads:\t{}
@@ -689,24 +697,16 @@ SETTINGS:
         (len(outputDir)+17)*"*",
         "autopick" if ref == '!' else ref,
         args.alignment_program,
-        seqdir,
         outputDir,
         OSTYPE,
         threads,
         (len(outputDir)+17)*"*"))
 
-        
+
 
     logger.info("<<Parsnp started>>")
 
     #1)read fasta files (contigs/scaffolds/finished/DBs/dirs)
-    logger.info( "Reading Genome (asm, fasta) files from %s.."%(seqdir))
-    try:
-        input_files = [os.path.join(seqdir, f) for f in os.listdir(seqdir) if 
-                os.path.isfile(os.path.join(seqdir, f)) and f[0] != '.' and f[-1] != '~']
-    except IOError:
-        logger.critical("Problem reading files from %s"%(seqdir))
-        sys.exit(1) 
     logger.info("Reading Genbank file(s) for reference (.gbk) %s..."%(genbank_files_str))
     if len(genbank_file) == 0:
         logger.warning("No genbank file provided for reference annotations, skipping..")
@@ -725,13 +725,13 @@ SETTINGS:
         hdr = ff.readline()
         seq = ff.read()
         if hdr[0] != ">":
-            logger.critical(" {} has improperly formatted header.".format(input_file))
+            logger.critical(" Reference {} has improperly formatted header.".format(input_file))
             sys.exit(1)
         if '>' in seq:
-            logger.critical(" Multiple sequences present in file {}".format(input_file))
+            logger.critical(" Multiple sequences present in reference {}".format(input_file))
             sys.exit(1)
         if '-' in seq:
-            logger.critical(" Genome sequence %s seems to aligned! remove and restart \n"%((input_file)))
+            logger.critical(" Reference genome sequence %s seems to aligned! remove and restart. "%((input_file)))
             sys.exit(1)
         reflen = len(seq) - seq.count('\n')
 
@@ -740,39 +740,38 @@ SETTINGS:
         hdr = ff.readline()
         seq = ff.read()
         name_flag = True
-        if hdr[0] != ">":
-            logger.critical(" {} has improperly formatted header.".format(input_file))
-            sys.exit(1)
-        if '>' in seq:
-            logger.critical(" Multiple sequences present in file {}".format(input_file))
-            sys.exit(1)
-        if '-' in seq:
-            logger.critical(" Genome sequence %s seems to aligned! remove and restart \n"%((input_file)))
-            sys.exit(1)
         seqlen = len(seq) - seq.count('\n')
-        if seqlen <= 20:
-            logger.warning(" File %s is less than or equal to 20bp in length. Skip!\n"%(input_file))
+        if hdr[0] != ">":
+            logger.error("{} has improperly formatted header. Skip!".format(input_file))
             continue
-        sizediff = float(reflen)/float(seqlen) 
-        
+        elif '>' in seq:
+            logger.error("Multiple sequences present in file {}. Skip!".format(input_file))
+            continue
+        elif '-' in seq:
+            logger.error("Genome sequence %s seems to aligned! Skip!"%((input_file)))
+            continue
+        elif seqlen <= 20:
+            logger.error("File %s is less than or equal to 20bp in length. Skip!"%(input_file))
+            continue
+        sizediff = float(reflen)/float(seqlen)
+
         # EDITED THIS TO CHANGE GENOME THRESHOLD
         # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
         if not probe:
             if sizediff <= 0.6 or sizediff >= 1.4:
-                logger.warning(" File %s is too short or too long compared to reference. Skip!\n"%(input_file))
+                logger.warning(" File %s is too short or too long compared to reference. Skip!"%(input_file))
                 continue
         else:
             if sizediff >= 1.4:
-                logger.warning(" File %s is too short compared to reference genome. Skip!\n"%(input_file))
+                logger.warning(" File %s is too short compared to reference genome. Skip!"%(input_file))
                 continue
-
         fnafiles.append(input_file)
         fnaf_sizes[input_file] = seqlen
         ff.close()
-    
+
     if ref in fnafiles:
         fnafiles.remove(ref)
-    
+
     #sort reference by largest replicon to smallest
     if sortem and os.path.exists(ref) and not autopick_ref:
         ff = open(ref, 'r')
@@ -797,13 +796,13 @@ SETTINGS:
         ffo.close()
     else:
         ref = genbank_ref
-    
+
     #remove any query sequences 30% diff in length
     allfiles = [os.path.basename(ref)]
     #write INI file
     if xtrafast or 1:
         extend = False
-    
+
     inifiled = open("%s/template.ini"%(PARSNP_DIR), 'r').read()
     inifiled = inifiled.replace("$REF", ref)
     inifiled = inifiled.replace("$EXTEND", "%d"%(extend))
@@ -835,20 +834,23 @@ SETTINGS:
     qry_hit_dict = {}
     hdr_dict = {}
     length_dict = {}
-    
+
     TOTSEQS= len(fnafiles) + 1
     seqids_list = []
+    #TODO I'm guessing mummer_mumi was intended to be an option?
     use_mummer_mumi = False
     use_parsnp_mumi = True
+
+    #TODO inifile_exists is set to false no matter what
     if not inifile_exists:
         if len(fnafiles) < 1 or ref == "":
             logger.critical("Parsnp requires 2 or more genomes to run, exiting")
             logger.debug("Only files found are: ")
-            print(fnafiles, end =' ') 
+            print(fnafiles, end =' ')
             print(ref)
             #TODO Why exit 0 here?
             sys.exit(0)
-    
+
         file_string = ""
         for cnt, fna_file in enumerate(fnafiles, 1):
             file_string += "file%d=%s\n"%(cnt, fna_file)
@@ -877,14 +879,11 @@ SETTINGS:
                     idx, mi = line.split(":")
                     mumi_dict[int(idx)-1] = float(mi)
                 except ValueError:
-                    pass    
+                    pass
         except IOError:
-            #TODO Should we be changing i? Seems like a bug...
-            #mumi file generation failed, skip.. use all?
-            i = 0
-            for f in fnafiles:
+            logger.error("MUMi file generation failed... use all?")
+            for i, _ in enumerate(fnafiles):
                 mumi_dict[i] = 1
-        print("  |->["+OK_GREEN+"OK"+"]")
     finalfiles = []
     lowest_mumi = 100
     auto_ref = ""
@@ -894,14 +893,13 @@ SETTINGS:
             #TODO is there a way to organize these via dict rather than list? Seems error prone
             if mumi_dict[idx] < lowest_mumi:
                 auto_ref = fnafiles[idx]
-                ref = auto_ref        
+                ref = auto_ref
                 lowest_mumi = mumi_dict[idx]
-    mumi_f = ""        
+    mumi_f = ""
     if mumi_only and not curated:
         mumi_f = open(os.path.join(outputDir, "recruited_genomes.lst"),'w')
-        
-    if VERBOSE:
-        logger.debug("RECRUITED GENOMES:")
+
+    logger.debug("RECRUITED GENOMES:")
 
     sorted_x = sorted(iter(mumi_dict.items()), key=operator.itemgetter(1))
     scnt = 0
@@ -932,13 +930,8 @@ SETTINGS:
             if 1 or auto_ref != fnafiles[idx]:
                 if mumi_only:
                     mumi_f.write(os.path.abspath(fnafiles[idx])+",%f"%(mumi_dict[idx])+"\n")
-                if VERBOSE:
-                    print("\t"+os.path.basename(fnafiles[idx]))
                 finalfiles.append(fnafiles[idx])
                 allfiles.append(fnafiles[idx])
-    if VERBOSE:
-        print("")
-
     if curated:
         for f in fnafiles:
             if f not in finalfiles:
@@ -983,7 +976,7 @@ SETTINGS:
         if len(finalfiles) < 1 or ref == "":
             logger.critical("Parsnp requires 2 or more genomes to run, exiting\n")
             sys.exit(1)
-    
+
         file_string = ""
         cnt = 1
         file_string_closest = ""
@@ -1017,7 +1010,7 @@ SETTINGS:
         inifile_closest = open(outputDir+os.sep+"psnn.ini",'w')
         inifile_closest.write(inifiled_closest)
         inifile_closest.close()
-    
+
 
     #3)run parsnp (cores, grid?)
     logger.info("Running Parsnp multi-MUM search and libMUSCLE aligner...")
@@ -1044,22 +1037,22 @@ SETTINGS:
                     sys.exit(1)
                 command = "%s/parsnp %s"%(PARSNP_DIR,inifile)
             run_command(command)
-        
+
             if not os.path.exists(os.path.join(outputDir, "parsnpAligner.xmfa")):
                 successful_run = False
                 runcnt += 1
                 if runcnt >= 2:
                     logger.error(" set of recruited genomes are too divergent for parsnp, please reduce MUMi (%f) and relaunch\n"%(float(mumidistance)))
-                    sys.exit(1)                
+                    sys.exit(1)
             else:
                 successful_run = True
                 runcnt += 1
                 break
         shutil.move(
-                os.path.join(outputDir, "parsnpAligner.xmfa"), 
+                os.path.join(outputDir, "parsnpAligner.xmfa"),
                 os.path.join(outputDir, "parsnp.xmfa"))
     xmfafile = open(os.path.join(outputDir, "parsnp.xmfa"),'r')
-        
+
     file2hdr_dict = {}
     fileid = ""
     blockfiles = []
@@ -1069,7 +1062,7 @@ SETTINGS:
     totlength = 0
     totseqs = 0
     try:
-        cf = open(os.path.join(outputDir, "parsnpAligner.log")) 
+        cf = open(os.path.join(outputDir, "parsnpAligner.log"))
         for line in cf:
             if "Total coverage among all sequences:" in line:
                 coverage = line.split(":",1)[-1].replace("\n","")
@@ -1087,7 +1080,7 @@ SETTINGS:
 Adjust params and rerun. If issue persists please submit a GitHub issue""")
         sys.exit(1)
     elif coverage < 0.1:
-        logger.warning("""Aligned regions cover less than 10% of reference genome! 
+        logger.warning("""Aligned regions cover less than 10% of reference genome!
 Please verify recruited genomes are all strain of interest""")
     else:
         pass
@@ -1107,16 +1100,16 @@ Please verify recruited genomes are all strain of interest""")
                 if header[0] != ">":
                     logger.error("Error with LCB: %s\n"%(f))
                     continue
-                
+
                 inf = header.split("+",1)[0]
-                
+
                 rseq = ""
                 while 1:
                     lff = lf.readline()
                     if lff[0] == ">":
                         break
                     rseq += lff.replace("\n","")
-                
+
                 spos,epos = inf.split(":",1)[-1].split("-",1)
                 block_startpos.append(int(spos))
                 block_dict[f] = [int(spos),int(epos), rseq]
@@ -1125,7 +1118,7 @@ Please verify recruited genomes are all strain of interest""")
 
     #initiate parallelPhiPack tasks
     run_recomb_filter = 0
-   
+
     if xtrafast:
         run_recomb_filter = 1
     else:
@@ -1148,7 +1141,7 @@ Please verify recruited genomes are all strain of interest""")
                 seq1 = seq1.replace("\n","")
                 bf.close()
             except IOError:
-                pass    
+                pass
 
             processed.append(f)
             params = {}
@@ -1160,11 +1153,11 @@ Please verify recruited genomes are all strain of interest""")
             params["dir"] = path
             params["output"] = os.path.join(path, "Profile.csv")
             tasks.append(params)
-    
+
         #run parallelPhiPack
         pool = Pool(processes=int(threads))
         result = pool.map_async(parallelPhiWrapper,tasks).get(sys.maxsize)
-        
+
         for i in result:
             if (i["status"] == 1):
                 #process output
@@ -1201,7 +1194,7 @@ Please verify recruited genomes are all strain of interest""")
                                 if block_spos < chr_spos:
                                     chrnum = ref_seqs[cs]
                             bedfile_dict[srpos] = "%d\t%s\t%s\tREC\t%.3f\t+\n"%(chrnum,srpos,pos+50+block_spos,eval)
-                             
+
                 qfile = tasks[i["jobID"]]["query"]
 
             elif i["status"] != 2:
@@ -1242,7 +1235,7 @@ Please verify recruited genomes are all strain of interest""")
     #7)reroot to midpoint
     if os.path.exists("outtree"):
         os.remove("outtree")
-       
+
     if reroot_tree and len(finalfiles) > 1:
         try:
             mtree = open("%sparsnp.tree"%(outputDir+os.sep), 'r')
@@ -1266,14 +1259,14 @@ Please verify recruited genomes are all strain of interest""")
             #if newick available, add
             #new flag to update branch lengths
             run_command("%s/harvest --midpoint-reroot -u -q -i "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
- 
+
 
     if float(elapsed)/float(60.0) > 60:
         logger.info("Aligned %d genomes in %.2f hours"%(totseqs,float(elapsed)/float(3600.0)))
     elif float(elapsed) > 60:
         #TODO just format the time to get rid of the above formatting
         logger.info("Aligned %d genomes in %.2f minutes"%(totseqs,float(elapsed)/float(60.0)))
-    else: 
+    else:
         logger.info("Aligned %d genomes in %.2f seconds"%(totseqs,float(elapsed)))
     #cleanup
     rmfiles = glob.glob(os.path.join(outputDir, "*.aln"))
