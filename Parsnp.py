@@ -564,25 +564,34 @@ if __name__ == "__main__":
     # add the handlers to the logger
     logger.addHandler(ch)
 
+    # Create output dir
+    if outputDir == "." or outputDir == "./" or outputDir == "/":
+        logger.critical("Specified output dir is current working dir or root dir! will clobber any parsnp.* results")
+        sys.exit(1)
+    elif outputDir == "[P_CURRDATE_CURRTIME]":
+        today = datetime.datetime.now()
+        timestamp = "P_"+today.isoformat().replace("-","_").replace(".","").replace(":","").replace("T","_")
+        outputDir = os.getcwd()+os.sep+timestamp
+    os.makedirs(outputDir, exist_ok=True)
+    shutil.rmtree(os.path.join(outputDir, "tmp"), ignore_errors=True)
+    os.makedirs(os.path.join(outputDir, "tmp"), exist_ok=True)
+
     # Parse reference if necessary
     if ref and ref != "!":
         try:
-            rf = open(ref,'r')
+            rf = open(ref, 'r')
             rfd = rf.read()
-            iefseqs = rfd.split(">")[1:]
+            refseqs = rfd.split(">")[1:]
             currpos = 0
-            #TODO use enumerate
-            seqnum = 1
             if len(refseqs) > 1:
                 multifasta = True
-                for seq in refseqs:
-                    #TODO inefficient.
-                    fastalen = len(seq.split("\n",1)[-1].replace("\n",""))
+                for seqnum, seq in enumerate(refseqs):
+                    seq = seq.split('\n', 1)[1]
+                    fastalen = len(seq) - seq.count('\n')
                     ref_seqs[currpos + fastalen] = seqnum
                     currpos += fastalen
-                    seqnum += 1
             rf.close()
-        except IOError:
+        except IOError as e:
             logger.critical(" Reference genome file %s not found\n"%(ref))
             sys.exit(1)
 
@@ -599,39 +608,23 @@ if __name__ == "__main__":
             if len(genbank_file) <= 1:
                 continue
             ctcmd += genbank_file + " "
+            genbank_ref = os.path.join(outputDir, "tmp", os.path.basename(genbank_file)+".fna")
             try:
                 #parse out reference, starts at ORIGIN ends at //, remove numbers,
                 rf = open(genbank_file,'r')
-                if first:
-                    genbank_ref = genbank_file+".fna"
-                    genbank_ref1 = open(genbank_ref,'w')
-                    giline = ""
-                    while 1:
-                        giline = rf.readline()
-                        if "VERSION" and "GI" in giline:
-                            break
-                        elif giline == None or giline == "":
-                            logger.critical("ERROR: Genbank file %s malformatted \n"%(genbank_file))
-                            sys.exit(1)
-                    if len(giline) <= 2:
-                        logger.critical("ERROR: Genbank file %s malformatted \n"%(genbank_file))
+                genbank_ref_d = open(genbank_ref, "a+")
+                while True:
+                    giline = rf.readline()
+                    if "VERSION" and "GI" in giline:
+                        break
+                    elif giline == None or giline == "":
+                        logger.critical("Genbank file %s malformatted \n"%(genbank_file))
                         sys.exit(1)
-                    genbank_ref1.write(">gi|"+giline.split("GI:")[-1])
-                    first = False
-                else:
-                    genbank_ref1 = open(genbank_ref,'a')
-                    giline = ""
-                    while 1:
-                        giline = rf.readline()
-                        if "VERSION" and "GI" in giline:
-                            break
-                        elif giline == None or giline == "":
-                            logger.critical("ERROR: Genbank file %s malformatted \n"%(genbank_file))
-                            sys.exit(1)
-                    if len(giline) <= 2:
-                        logger.critical("ERROR: Genbank file %s malformatted \n"%(genbank_file))
-                        sys.exit(1)
-                    genbank_ref1.write(">gi|"+giline.split("GI:")[-1])
+                if len(giline) <= 2:
+                    logger.critical("Genbank file %s malformatted \n"%(genbank_file))
+                    sys.exit(1)
+                genbank_ref_d.write(">gi|"+giline.split("GI:")[-1])
+                first = False
                 ntdata = False
                 data = ""
                 for line in rf:
@@ -647,27 +640,15 @@ if __name__ == "__main__":
                 if len(data) < 10:
                       logger.critical("Genbank file %s contains no sequence data\n"%(genbank_file))
                       sys.exit(1)
-                genbank_ref1.write(data.upper())
-                genbank_ref1.close()
-            except IOError:
+                genbank_ref_d.write(data.upper())
+                genbank_ref_d.close()
+            except IOError as e:
                 logger.critical("Genbank file %s not found\n"%(genbank_file))
                 sys.exit(1)
 
             genbank_files_cat = "%s.cat"%(genbank_files[0])
             os.system(ctcmd+"> "+genbank_files_cat)
 
-    # Create output dir
-    if outputDir != "[P_CURRDATE_CURRTIME]":
-        if outputDir == "." or outputDir == "./" or outputDir == "/":
-            logger.warning("Specified output dir is current working dir or root dir! will clobber any parsnp.* results")
-            outputDir = ""
-        else:
-            os.makedirs(outputDir, exist_ok=True)
-    else:
-        today = datetime.datetime.now()
-        timestamp = "P_"+today.isoformat().replace("-","_").replace(".","").replace(":","").replace("T","_")
-        outputDir = os.getcwd()+os.sep+timestamp
-        os.mkdir("%s"%(outputDir))
 
     sortem = True
     if len(ref) == 0 and len(genbank_ref) != 0:
@@ -725,13 +706,10 @@ SETTINGS:
         hdr = ff.readline()
         seq = ff.read()
         if hdr[0] != ">":
-            logger.critical(" Reference {} has improperly formatted header.".format(input_file))
-            sys.exit(1)
-        if '>' in seq:
-            logger.critical(" Multiple sequences present in reference {}".format(input_file))
+            logger.critical(" Reference {} has improperly formatted header.".format(ref))
             sys.exit(1)
         if '-' in seq:
-            logger.critical(" Reference genome sequence %s seems to aligned! remove and restart. "%((input_file)))
+            logger.critical(" Reference genome sequence %s seems to aligned! remove and restart. "%((ref)))
             sys.exit(1)
         reflen = len(seq) - seq.count('\n')
 
@@ -757,13 +735,13 @@ SETTINGS:
 
         # EDITED THIS TO CHANGE GENOME THRESHOLD
         # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
-        if not probe:
-            if sizediff <= 0.6 or sizediff >= 1.4:
-                logger.warning(" File %s is too short or too long compared to reference. Skip!"%(input_file))
+        if probe and sizediff <= 0.6:
+            if sizediff <= 0.6:
+                logger.warning(" File %s is too long compared to reference!"%(input_file))
                 continue
         else:
             if sizediff >= 1.4:
-                logger.warning(" File %s is too short compared to reference genome. Skip!"%(input_file))
+                logger.warning(" File %s is too short compared to reference genome!"%(input_file))
                 continue
         fnafiles.append(input_file)
         fnaf_sizes[input_file] = seqlen
@@ -875,11 +853,8 @@ SETTINGS:
             mumif = open(os.path.join(outputDir, "all.mumi"),'r')
             for line in mumif:
                 line = line.rstrip('\n')
-                try:
-                    idx, mi = line.split(":")
-                    mumi_dict[int(idx)-1] = float(mi)
-                except ValueError:
-                    pass
+                idx, mi = line.split(":")
+                mumi_dict[int(idx)-1] = float(mi)
         except IOError:
             logger.error("MUMi file generation failed... use all?")
             for i, _ in enumerate(fnafiles):
@@ -968,8 +943,6 @@ SETTINGS:
         ffo.close()
         ref = auto_ref
 
-        #print ref
-    #print ref
     inifiled_closest = inifiled
     #TODO This code is duplicated
     if not inifile_exists:
@@ -1042,7 +1015,7 @@ SETTINGS:
                 successful_run = False
                 runcnt += 1
                 if runcnt >= 2:
-                    logger.error(" set of recruited genomes are too divergent for parsnp, please reduce MUMi (%f) and relaunch\n"%(float(mumidistance)))
+                    logger.critical("Set of recruited genomes are too divergent for parsnp, please reduce MUMi (%f) and relaunch\n"%(float(mumidistance)))
                     sys.exit(1)
             else:
                 successful_run = True
@@ -1212,6 +1185,7 @@ Please verify recruited genomes are all strain of interest""")
     run_lcb_trees = 0
 
     annotation_dict = {}
+    #TODO always using xtrafast?
     if xtrafast or 1:
         #add genbank here, if present
         if len(genbank_ref) != 0:
