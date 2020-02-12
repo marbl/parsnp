@@ -120,7 +120,7 @@ if frozenbinary:
 OSTYPE="linux"
 p = subprocess.Popen("echo `uname`", shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 (checkStdout, checkStderr) = p.communicate()
-if checkStderr != "":
+if checkStderr != b"":
     sys.stderr.write(WARNING_YELLOW+"Warning: Cannot determine OS, defaulting to %s\n"%(OSTYPE)+ENDC)
 else:
     OSTYPE = checkStdout.decode('utf-8').strip()
@@ -314,10 +314,10 @@ def parse_args():
     python Parsnp.py -g <reference_genbank_file1,reference_genbank_file2,..> -d <genome_dir> -p <threads>
 
     2) With reference but without genbank file:
-    python Parsnp.py -r <reference_genome> -d <genome_dir> -p <threads>
+    python Parsnp.py -r <reference_genome> -d <seq_file1, seq_file2,...> -p <threads>
 
     3) Autorecruit reference to a draft assembly:
-    python Parsnp.py -q <draft_assembly> -d <genome_db> -p <threads>
+    python Parsnp.py -q <draft_assembly> -d <seq_file1, seq_file2,...> -p <threads>
     """, formatter_class=argparse.RawTextHelpFormatter)
     #TODO Use lambda to check files and directories
     input_output_args = parser.add_argument_group(title="Input/Output")
