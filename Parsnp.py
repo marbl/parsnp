@@ -610,6 +610,7 @@ if __name__ == "__main__":
 
     # Validate genbank files
     #TODO Make this a function
+    # return genbank_ref
     if args.genbank:
         genbank_files_str = args.genbank
         genbank_files = genbank_files_str.split(",")
@@ -660,7 +661,7 @@ if __name__ == "__main__":
                 sys.exit(1)
 
             genbank_files_cat = "%s.cat"%(genbank_files[0])
-            os.system(ctcmd+"> "+genbank_files_cat)
+        os.system(ctcmd+"> "+genbank_files_cat)
 
 
     sortem = True
@@ -1113,9 +1114,8 @@ Please verify recruited genomes are all strain of interest""")
     recombination_sites = {}
     bedfile = ""
     bedfile_dict = {}
-    logger.info("Running PhiPack on LCBs to detect recombination...")
     if run_recomb_filter and len(blockfiles) > 0:
-
+        logger.info("Running PhiPack on LCBs to detect recombination...")
         bedfile = open(os.path.join(outputDir, "parsnp.rec"), 'w')
         tasks = []
         processed = []
