@@ -311,13 +311,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description="""
     Parsnp quick start for three example scenarios:
     1) With reference & genbank file:
-    python Parsnp.py -g <reference_genbank_file1,reference_genbank_file2,..> -d <genome_dir> -p <threads>
+    python Parsnp.py -g <reference_genbank_file1 reference_genbank_file2 ...> -d <seq_file1 seq_file2 ...>  -p <threads>
 
     2) With reference but without genbank file:
-    python Parsnp.py -r <reference_genome> -d <seq_file1, seq_file2,...> -p <threads>
+    python Parsnp.py -r <reference_genome> -d <seq_file1 seq_file2 ...> -p <threads>
 
     3) Autorecruit reference to a draft assembly:
-    python Parsnp.py -q <draft_assembly> -d <seq_file1, seq_file2,...> -p <threads>
+    python Parsnp.py -q <draft_assembly> -d <seq_file1 seq_file2 ...> -p <threads>
     """, formatter_class=argparse.RawTextHelpFormatter)
     #TODO Use lambda to check files and directories
     input_output_args = parser.add_argument_group(title="Input/Output")
@@ -342,9 +342,8 @@ def parse_args():
     input_output_args.add_argument(
         "-g",
         "--genbank",
-        type = str,
-        default = "",
-        help = "Genbank file(s) (gbk), comma separated list")
+        nargs = '*',
+        help = "A list of Genbank file(s) (gbk)")
     input_output_args.add_argument(
         "-o",
         "--output-dir",
@@ -497,8 +496,8 @@ def parse_args():
         help = "Split genomes by n's")
     todo_args.add_argument(
         "-i",
-        "--ini-file",
         "--inifile",
+        "--ini-file",
         type = str)
     todo_args.add_argument(
         "-m",
@@ -546,19 +545,18 @@ if __name__ == "__main__":
     extend = args.extend
     layout = args.layout
     xtrafast = args.xtrafast
-    inifile= args.ini_file
+    inifile = args.inifile
+    inifile_exists = args.inifile is not None
     mumi_only = args.mumi_only
     mumidistance = args.max_mumi_distr_dist
     outputDir = args.output_dir
     probe = args.probe
     genbank_file = ""
     genbank_files = []
-    genbank_files_str = ""
     genbank_files_cat = ""
     genbank_ref = ""
     reflen = 0
     use_gingr = ""
-    inifile_exists = False
     filtreps = False
 
     repfile = ""
@@ -612,13 +610,12 @@ if __name__ == "__main__":
     #TODO Make this a function
     # return genbank_ref
     if args.genbank:
-        genbank_files_str = args.genbank
-        genbank_files = genbank_files_str.split(",")
+        genbank_files = args.genbank
         ctcmd = "cat "
 
         first = True
         #genbank_ref = ""
-        for genbank_file in genbank_files_str.split(","):
+        for genbank_file in genbank_files:
             if len(genbank_file) <= 1:
                 continue
             ctcmd += genbank_file + " "
@@ -665,9 +662,11 @@ if __name__ == "__main__":
 
 
     sortem = True
+    original_reference = ref
     if len(ref) == 0 and len(genbank_ref) != 0:
         #we are parsing from genbank, set ref to genbank_ref && turn off sorting
         ref = genbank_ref
+        original_reference = args.genbank
         sortem = False
 
     autopick_ref = False
@@ -690,7 +689,7 @@ SETTINGS:
 {}
     """.format(
         (len(outputDir)+17)*"*",
-        "autopick" if ref == '!' else ref,
+        "autopick" if ref == '!' else '\n\t' + "\n\t".join(original_reference),
         args.alignment_program,
         outputDir,
         OSTYPE,
@@ -702,14 +701,13 @@ SETTINGS:
     logger.info("<<Parsnp started>>")
 
     #1)read fasta files (contigs/scaffolds/finished/DBs/dirs)
-    logger.info("Reading Genbank file(s) for reference (.gbk) %s..."%(genbank_files_str))
+    logger.info("Reading Genbank file(s) for reference (.gbk) %s"%("\t".join(genbank_files)))
     if len(genbank_file) == 0:
         logger.warning("No genbank file provided for reference annotations, skipping..")
 
     allfiles = []
     fnaf_sizes = {}
-
-    allfile_dict = {}
+    allfile_dict = {} 
     reflen = 0
     fnafiles = []
     if ref == "!":
@@ -766,6 +764,7 @@ SETTINGS:
 
     #sort reference by largest replicon to smallest
     if sortem and os.path.exists(ref) and not autopick_ref:
+        logger.debug("Sorting reference replicons")
         ff = open(ref, 'r')
         seqs = ff.read().split(">")[1:]
         seq_dict = {}
@@ -789,28 +788,40 @@ SETTINGS:
     else:
         ref = genbank_ref
 
-    #remove any query sequences 30% diff in length
+    # TODO stray comment: remove any query sequences 30% diff in length
     allfiles = [os.path.basename(ref)]
     #write INI file
-    if xtrafast or 1:
-        extend = False
+    if not inifile_exists:
+        logger.debug("Writing .ini file")
+        if xtrafast or 1:
+            extend = False
 
-    inifiled = open("%s/template.ini"%(PARSNP_DIR), 'r').read()
-    inifiled = inifiled.replace("$REF", ref)
-    inifiled = inifiled.replace("$EXTEND", "%d"%(extend))
-    inifiled = inifiled.replace("$ANCHORS", str(anchor))
-    inifiled = inifiled.replace("$MUMS", str(mum))
-    inifiled = inifiled.replace("$MINCLUSTER", str(mincluster))
-    inifiled = inifiled.replace("$CLUSTERD", str(cluster))
-    inifiled = inifiled.replace("$THREADS", str(threads))
-    inifiled = inifiled.replace("$ALIGNER", str(aligner))
-    inifiled = inifiled.replace("$DIAGDIFF", str(diagdiff))
-    inifiled = inifiled.replace("$RECOMBFILT", "%d"%(xtrafast))
-    inifiled = inifiled.replace("$OUTDIR", outputDir)
-    if fastmum:
-        inifiled = inifiled.replace("$PARTPOS","%d"%(0.2*reflen))
-    else:
-        inifiled = inifiled.replace("$PARTPOS","%s"%(maxpartition))
+        inifiled = open("%s/template.ini"%(PARSNP_DIR), 'r').read()
+        inifiled = inifiled.replace("$REF", ref)
+        inifiled = inifiled.replace("$EXTEND", "%d"%(extend))
+        inifiled = inifiled.replace("$ANCHORS", str(anchor))
+        inifiled = inifiled.replace("$MUMS", str(mum))
+        inifiled = inifiled.replace("$MINCLUSTER", str(mincluster))
+        inifiled = inifiled.replace("$CLUSTERD", str(cluster))
+        inifiled = inifiled.replace("$THREADS", str(threads))
+        inifiled = inifiled.replace("$ALIGNER", str(aligner))
+        inifiled = inifiled.replace("$DIAGDIFF", str(diagdiff))
+        inifiled = inifiled.replace("$RECOMBFILT", "%d"%(xtrafast))
+        inifiled = inifiled.replace("$OUTDIR", outputDir)
+        if fastmum:
+            inifiled = inifiled.replace("$PARTPOS","%d"%(0.2*reflen))
+        else:
+            inifiled = inifiled.replace("$PARTPOS","%s"%(maxpartition))
+
+        file_string = ""
+        for cnt, fna_file in enumerate(fnafiles, 1):
+            file_string += "file%d=%s\n"%(cnt, fna_file)
+            file_string += "reverse%d=0\n"%(cnt)
+        inifiled_mumi = inifiled.replace("$FILES\n", file_string)
+        inifiled_mumi = inifiled_mumi.replace("calcmumi=0","calcmumi=1")
+        inifile_mumi = open(os.path.join(outputDir, "all_mumi.ini"), 'w')
+        inifile_mumi.write(inifiled_mumi)
+        inifile_mumi.close()
 
     #2)get near neighbors (mumi distance)
     if os.path.exists(os.path.join(outputDir, "alltogether.fasta")):
@@ -833,34 +844,18 @@ SETTINGS:
     use_mummer_mumi = False
     use_parsnp_mumi = True
 
-    #TODO inifile_exists is set to false no matter what
-    if not inifile_exists:
-        if len(fnafiles) < 1 or ref == "":
-            logger.critical("Parsnp requires 2 or more genomes to run, exiting")
-            logger.debug("Only files found are: ")
-            print(fnafiles, end =' ')
-            print(ref)
-            #TODO Why exit 0 here?
-            sys.exit(0)
+    if len(fnafiles) < 1 or ref == "":
+        logger.critical("Parsnp requires 2 or more genomes to run, exiting")
+        logger.debug("Only files found are: {}\n{} ".format(fnafiles, ref))
+        sys.exit(1)
 
-        file_string = ""
-        for cnt, fna_file in enumerate(fnafiles, 1):
-            file_string += "file%d=%s\n"%(cnt, fna_file)
-            file_string += "reverse%d=0\n"%(cnt)
-        inifiled_mumi = inifiled.replace("$FILES\n", file_string)
-        inifiled_mumi = inifiled_mumi.replace("calcmumi=0","calcmumi=1")
-        inifile_mumi = open(os.path.join(outputDir, "all_mumi.ini"), 'w')
-        inifile_mumi.write(inifiled_mumi)
-        inifile_mumi.close()
     mumi_dict = {}
     if use_parsnp_mumi and not curated:
-        logger.info("Calculating MUMi...")
+        logger.info("Recruiting genomes")
         if not inifile_exists:
             command = "%s/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
         else:
-            if not os.path.exists(inifile):
-                logger.critical("ini file %s does not exist!\n"%(inifile))
-                sys.exit(1)
+            # TODO why are we editing the suffix of a provided file?
             command = "%s/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
         run_command(command)
         try:
@@ -888,22 +883,16 @@ SETTINGS:
     if mumi_only and not curated:
         mumi_f = open(os.path.join(outputDir, "recruited_genomes.lst"),'w')
 
-    logger.debug("RECRUITED GENOMES:")
 
     sorted_x = sorted(iter(mumi_dict.items()), key=operator.itemgetter(1))
-    scnt = 0
     mumivals = []
-    for item in sorted_x:
+    for scnt, item in enumerate(sorted_x):
         if scnt > 100 or scnt >= len(sorted_x):
             break
         if float(item[1]) < float(mumidistance):
             mumivals.append(float(item[1]))
-        scnt += 1
-    minv = 1.0
-    if len(mumivals) > 0:
-        minv = numpy.percentile(mumivals,0)
+    minv = minv = numpy.percentile(mumivals, 0) if len(mumivals) > 0 else 1.0
     dvals = mumivals
-
 
     stdv = 0
     hpv = 0
@@ -921,6 +910,7 @@ SETTINGS:
                     mumi_f.write(os.path.abspath(fnafiles[idx])+",%f"%(mumi_dict[idx])+"\n")
                 finalfiles.append(fnafiles[idx])
                 allfiles.append(fnafiles[idx])
+
     if curated:
         for f in fnafiles:
             if f not in finalfiles:
@@ -1063,7 +1053,7 @@ SETTINGS:
 
     #update thresholds
     if coverage <= 0.01:
-        logger.critical("""Aligned regions cover less than 1% of reference genome, something is not right...
+        logger.critical("""Aligned regions cover less than 1% of reference genome, something is not right
 Adjust params and rerun. If issue persists please submit a GitHub issue""")
         sys.exit(1)
     elif coverage < 0.1:
@@ -1240,7 +1230,7 @@ Please verify recruited genomes are all strain of interest""")
             logger.error("Cannot process fasttree output, skipping midpoint reroot..\n")
 
 
-    if 1 or len(use_gingr) > 0:
+    if len(use_gingr) > 0:
         logger.info("Creating Gingr input file..")
         if xtrafast or 1:
             #if newick available, add
@@ -1266,7 +1256,7 @@ Please verify recruited genomes are all strain of interest""")
 
     filepres = 0
     logger.info("Parsnp finished! All output available in %s"%(outputDir))
-    logger.info("Validating output directory contents...")
+    logger.debug("Validating output directory contents")
     print("\t1)parsnp.tree:\t\tnewick format tree", end =' ')
     if os.path.exists("%sparsnp.tree"%(outputDir+os.sep)) and os.path.getsize("%sparsnp.tree"%(outputDir+os.sep)) > 0:
         print("\t\t\t["+OK_GREEN+"OK"+"]")
