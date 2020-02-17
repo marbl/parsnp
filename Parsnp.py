@@ -657,8 +657,6 @@ if __name__ == "__main__":
                 logger.critical("Genbank file %s not found\n"%(genbank_file))
                 sys.exit(1)
 
-            genbank_files_cat = "%s.cat"%(genbank_files[0])
-        os.system(ctcmd+"> "+genbank_files_cat)
 
 
     sortem = True
@@ -744,8 +742,7 @@ SETTINGS:
 
         # EDITED THIS TO CHANGE GENOME THRESHOLD
         # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
-        if probe and sizediff <= 0.6:
-            if sizediff <= 0.6:
+        if not probe and sizediff <= 0.6:
                 logger.warning(" File %s is too long compared to reference!"%(input_file))
                 continue
         else:
