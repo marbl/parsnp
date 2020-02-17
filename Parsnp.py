@@ -734,9 +734,6 @@ SETTINGS:
         if hdr[0] != ">":
             logger.error("{} has improperly formatted header. Skip!".format(input_file))
             continue
-        elif '>' in seq:
-            logger.error("Multiple sequences present in file {}. Skip!".format(input_file))
-            continue
         elif '-' in seq:
             logger.error("Genome sequence %s seems to aligned! Skip!"%((input_file)))
             continue
