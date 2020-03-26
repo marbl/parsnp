@@ -716,7 +716,7 @@ SETTINGS:
     """.format(
         (len(outputDir)+17)*"*",
         "autopick" if ref == '!' else ref_string,
-        genome_string,
+        "\n\t".join(set([os.path.dirname(f) for f in input_files])),
         args.alignment_program,
         outputDir,
         OSTYPE,
