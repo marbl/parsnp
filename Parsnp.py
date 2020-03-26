@@ -606,6 +606,7 @@ if __name__ == "__main__":
     #TODO Make this a function
     # return genbank_ref
     if args.genbank:
+        genbank_files = args.genbank
         genbank_files_processed = []
         for genbank_f in genbank_files:
             if os.path.isdir(genbank_f):
@@ -616,7 +617,6 @@ if __name__ == "__main__":
             elif os.path.isfile(genbank_f):
                 genbank_files_processed.append(genbank_f)
         genbank_files = genbank_files_processed
-        genbank_files = args.genbank
         ctcmd = "cat "
 
         first = True
@@ -666,11 +666,32 @@ if __name__ == "__main__":
 
 
     sortem = True
-    original_reference = ref
+    ref_string = ref
+    genome_string = ""
+    if len(input_files) > 1:
+        genome_string = "\n\t"
+        if len(input_files) > 4:
+            genome_string = "\n\t".join(input_files[:2])
+            genome_string += "\n\t({} more file(s))".format(len(input_files) - 4)
+            genome_string = "\n\t".join(input_files[-2:])
+        else:
+            genome_string = "\n\t".join(input_files)
+    else:
+        genome_string = input_files[0]
     if len(ref) == 0 and len(genbank_ref) != 0:
         #we are parsing from genbank, set ref to genbank_ref && turn off sorting
         ref = genbank_ref
-        original_reference = args.genbank
+        if len(genbank_files) > 1:
+            ref_string = "\n\t"
+            if len(genbank_files) > 4:
+                ref_string = "\n\t".join(genbank_files[:2])
+                ref_string += "\n\t({} more file(s))".format(len(genbank_files) - 4)
+                ref_string = "\n\t".join(genbank_files[-2:])
+            else:
+                ref_string = "\n\t".join(genbank_files)
+        else:
+            ref_string = genbank_files[0]
+
         sortem = False
 
     autopick_ref = False
@@ -694,8 +715,8 @@ SETTINGS:
 {}
     """.format(
         (len(outputDir)+17)*"*",
-        "autopick" if ref == '!' else original_reference,
-        "\n\t".join(set([os.path.dirname(f) for f in input_files])),
+        "autopick" if ref == '!' else ref_string,
+        genome_string,
         args.alignment_program,
         outputDir,
         OSTYPE,
