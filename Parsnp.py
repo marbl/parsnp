@@ -707,7 +707,7 @@ if __name__ == "__main__":
 {}
 SETTINGS:
 |-refgenome:\t{}
-|-genome_dirs:\t{}
+|-genomes:\t{}
 |-aligner:\t{}
 |-outdir:\t{}
 |-OS:\t{}
