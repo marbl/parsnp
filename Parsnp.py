@@ -139,21 +139,6 @@ if not os.path.lexists("%s/bin/ft"%(PARSNP_DIR)):
     os.system("ln -s %s/bin/fasttree_%s %s/bin/ft"%(PARSNP_DIR,binary_type,PARSNP_DIR))
 if not os.path.lexists("%s/bin/phiprofile"%(PARSNP_DIR)):
     os.system("ln -s %s/bin/Profile_%s %s/bin/phiprofile"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-
-# if not os.path.lexists("%s/bin/nucmer"%(PARSNP_DIR)):
-    # os.system("ln -s %s/MUMmer/nucmer %s/nucmer"%(PARSNP_DIR,PARSNP_DIR))
-# if not os.path.lexists("%s/bin/show-coords"%(PARSNP_DIR)):
-    # os.system("ln -s %s/MUMmer/show-coords %s/show-coords"%(PARSNP_DIR,PARSNP_DIR))
-
-# #set MUMmer paths
-# if os.path.exists("%s/MUMmer/nucmer_run"%(PARSNP_DIR)):
-    # ff = open("%s/MUMmer/nucmer_run"%(PARSNP_DIR))
-    # ffd = ff.read()
-    # ff.close()
-    # ffd = ffd.replace("$MUMMERPATH1",PARSNP_DIR)
-    # ff = open("%s/MUMmer/nucmer"%(PARSNP_DIR),'w')
-    # ff.write(ffd)
-    # ff.close()
 ####################################################################################################
 
 
@@ -719,8 +704,8 @@ SETTINGS:
             logger.critical(" Reference {} has improperly formatted header.".format(ref))
             sys.exit(1)
         if '-' in seq:
-            logger.critical(" Reference genome sequence %s seems to aligned! remove and restart. "%((ref)))
-            sys.exit(1)
+            logger.warning(" Reference genome sequence %s seems to aligned! remove and restart. "%((ref)))
+            # sys.exit(1)
         reflen = len(seq) - seq.count('\n')
 
     for input_file in input_files:
@@ -733,8 +718,8 @@ SETTINGS:
             logger.error("{} has improperly formatted header. Skip!".format(input_file))
             continue
         elif '-' in seq:
-            logger.error("Genome sequence %s seems to aligned! Skip!"%((input_file)))
-            continue
+            logger.warning("Genome sequence %s seems to aligned! Skip!"%((input_file)))
+            # continue
         elif seqlen <= 20:
             logger.error("File %s is less than or equal to 20bp in length. Skip!"%(input_file))
             continue
