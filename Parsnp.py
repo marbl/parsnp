@@ -665,14 +665,16 @@ if __name__ == "__main__":
 {}
 SETTINGS:
 |-refgenome:\t{}
-|-alginer:\t{}
+|-genome_dirs:\t{}
+|-aligner:\t{}
 |-outdir:\t{}
 |-OS:\t{}
 |-threads:\t{}
 {}
     """.format(
         (len(outputDir)+17)*"*",
-        "autopick" if ref == '!' else '\n\t' + "\n\t".join(original_reference),
+        "autopick" if ref == '!' else original_reference,
+        "\n\t".join(set([os.path.dirname(f) for f in input_files])),
         args.alignment_program,
         outputDir,
         OSTYPE,
@@ -727,7 +729,7 @@ SETTINGS:
 
         # EDITED THIS TO CHANGE GENOME THRESHOLD
         # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
-        if not probe and sizediff <= 0.6:
+        if not args.probe and sizediff <= 0.6:
                 logger.warning(" File %s is too long compared to reference!"%(input_file))
                 continue
         else:
@@ -1031,12 +1033,13 @@ SETTINGS:
         sys.exit(1)
 
     #update thresholds
-    if coverage <= 0.01:
-        logger.critical("""Aligned regions cover less than 1% of reference genome, something is not right
+    if coverage < 0.1 and not args.probe:
+        if coverage <= 0.01:
+            logger.critical("""Aligned regions cover less than 1% of reference genome, something is not right
 Adjust params and rerun. If issue persists please submit a GitHub issue""")
-        sys.exit(1)
-    elif coverage < 0.1:
-        logger.warning("""Aligned regions cover less than 10% of reference genome!
+            sys.exit(1)
+        else:
+            logger.warning("""Aligned regions cover less than 10% of reference genome!
 Please verify recruited genomes are all strain of interest""")
     else:
         pass
