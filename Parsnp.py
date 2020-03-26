@@ -675,7 +675,7 @@ if __name__ == "__main__":
             genome_string += "\n\t...{} more file(s)...\n\t".format(len(input_files) - 4)
             genome_string += "\n\t".join(input_files[-2:])
         else:
-            genome_string = "\n\t".join(input_files)
+            genome_string += "\n\t".join(input_files)
     else:
         genome_string = input_files[0]
     if len(ref) == 0 and len(genbank_ref) != 0:
@@ -690,7 +690,7 @@ if __name__ == "__main__":
             else:
                 ref_string = "\n\t".join(genbank_files)
         else:
-            ref_string = genbank_files[0]
+            ref_string += genbank_files[0]
 
         sortem = False
 
