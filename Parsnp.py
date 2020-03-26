@@ -572,6 +572,17 @@ if __name__ == "__main__":
     shutil.rmtree(os.path.join(outputDir, "tmp"), ignore_errors=True)
     os.makedirs(os.path.join(outputDir, "tmp"), exist_ok=True)
 
+    input_files_processed = []
+    for input_f in input_files:
+        if os.path.isdir(input_f):
+            for f in os.listdir(input_f):
+                f = os.path.join(input_f, f)
+                if os.path.isfile(f):
+                    input_files_processed.append(f)
+        elif os.path.isfile(input_f):
+            input_files_processed.append(input_f)
+    input_files = input_files_processed
+
     # Parse reference if necessary
     if ref and ref != "!":
         try:
@@ -595,6 +606,16 @@ if __name__ == "__main__":
     #TODO Make this a function
     # return genbank_ref
     if args.genbank:
+        genbank_files_processed = []
+        for genbank_f in genbank_files:
+            if os.path.isdir(genbank_f):
+                for f in os.listdir(genbank_f):
+                    f = os.path.join(genbank_f, f)
+                    if os.path.isfile(f):
+                        genbank_files_processed.append(f)
+            elif os.path.isfile(genbank_f):
+                genbank_files_processed.append(genbank_f)
+        genbank_files = genbank_files_processed
         genbank_files = args.genbank
         ctcmd = "cat "
 
