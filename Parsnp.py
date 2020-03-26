@@ -672,7 +672,7 @@ if __name__ == "__main__":
         genome_string = "\n\t"
         if len(input_files) > 4:
             genome_string += "\n\t".join(input_files[:2])
-            genome_string += "\n\t({} more file(s))".format(len(input_files) - 4)
+            genome_string += "\n\t...{} more file(s)...\n\t".format(len(input_files) - 4)
             genome_string += "\n\t".join(input_files[-2:])
         else:
             genome_string = "\n\t".join(input_files)
@@ -685,7 +685,7 @@ if __name__ == "__main__":
             ref_string = "\n\t"
             if len(genbank_files) > 4:
                 ref_string += "\n\t".join(genbank_files[:2])
-                ref_string += "\n\t({} more file(s))".format(len(genbank_files) - 4)
+                ref_string += "\n\t...{} more file(s)...\n\t".format(len(genbank_files) - 4)
                 ref_string += "\n\t".join(genbank_files[-2:])
             else:
                 ref_string = "\n\t".join(genbank_files)
