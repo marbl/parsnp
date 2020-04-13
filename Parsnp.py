@@ -730,9 +730,9 @@ SETTINGS:
     logger.info("<<Parsnp started>>")
 
     #1)read fasta files (contigs/scaffolds/finished/DBs/dirs)
-    logger.info("Reading Genbank file(s) for reference (.gbk) %s"%("\t".join(genbank_files)))
+    # logger.info("Reading Genbank file(s) for reference (.gbk) %s"%("\t".join(genbank_files)))
     if len(genbank_file) == 0:
-        logger.warning("No genbank file provided for reference annotations, skipping..")
+        logger.info("No genbank file provided for reference annotations, skipping..")
 
     allfiles = []
     fnaf_sizes = {}
@@ -747,11 +747,11 @@ SETTINGS:
         hdr = ff.readline()
         seq = ff.read()
         if hdr[0] != ">":
-            logger.critical(" Reference {} has improperly formatted header.".format(ref))
+            logger.critical("Reference {} has improperly formatted header.".format(ref))
             sys.exit(1)
-        if '-' in seq:
-            logger.warning(" Reference genome sequence %s seems to aligned! remove and restart. "%((ref)))
-            # sys.exit(1)
+        for line in seq.split('\n'):
+            if '-' in line and line[0] != ">":
+                logger.warning("Reference genome sequence %s has '-' in the sequence!"%((ref)))
         reflen = len(seq) - seq.count('\n')
 
     for input_file in input_files:
@@ -774,11 +774,11 @@ SETTINGS:
         # EDITED THIS TO CHANGE GENOME THRESHOLD
         # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
         if not args.probe and sizediff <= 0.6:
-                logger.warning(" File %s is too long compared to reference!"%(input_file))
+                logger.warning("File %s is too long compared to reference!"%(input_file))
                 continue
         else:
             if sizediff >= 1.4:
-                logger.warning(" File %s is too short compared to reference genome!"%(input_file))
+                logger.warning("File %s is too short compared to reference genome!"%(input_file))
                 continue
         fnafiles.append(input_file)
         fnaf_sizes[input_file] = seqlen
@@ -1035,7 +1035,7 @@ SETTINGS:
                     command = "%s/bin/parsnp %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
             else:
                 if not os.path.exists(inifile):
-                    logger.error(" ini file %s does not exist!\n"%(inifile))
+                    logger.error("ini file %s does not exist!\n"%(inifile))
                     sys.exit(1)
                 command = "%s/bin/parsnp %s"%(PARSNP_DIR,inifile)
             run_command(command)
