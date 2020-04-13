@@ -1,5 +1,5 @@
+#!/usr/bin/env python
 # See the LICENSE file included with this software for license information.
-
 
 import os, sys, string, getopt, random,subprocess, time, glob,operator, math, datetime,numpy #pysam
 import shutil
@@ -131,8 +131,9 @@ else:
     binary_type = "linux"
 
 
-if not os.path.lexists("%s/bin/parsnp"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/parsnp %s/bin/parsnp"%(PARSNP_DIR, PARSNP_DIR))
+# Should save parsnp alias for the main entry point 
+# if not os.path.lexists("%s/bin/parsnp"%(PARSNP_DIR)):
+    # os.system("ln -s %s/bin/parsnp %s/bin/parsnp"%(PARSNP_DIR, PARSNP_DIR))
 if not os.path.lexists("%s/bin/harvest"%(PARSNP_DIR)):
     os.system("ln -s %s/bin/harvest_%s %s/bin/harvest"%(PARSNP_DIR,binary_type,PARSNP_DIR))
 if not os.path.lexists("%s/bin/ft"%(PARSNP_DIR)):
@@ -316,6 +317,7 @@ def parse_args():
         "--sequences",
         type = str,
         nargs = '*',
+        required = True,
         help = "A list of files containing genomes/contigs/scaffolds")
     input_output_args.add_argument(
         "-r",
@@ -876,10 +878,10 @@ SETTINGS:
     if use_parsnp_mumi and not curated:
         logger.info("Recruiting genomes")
         if not inifile_exists:
-            command = "%s/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
+            command = "%s/bin/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
         else:
             # TODO why are we editing the suffix of a provided file?
-            command = "%s/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
+            command = "%s/bin/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
         run_command(command)
         try:
             mumif = open(os.path.join(outputDir, "all.mumi"),'r')
@@ -1028,14 +1030,14 @@ SETTINGS:
                 if command == "" and xtrafast and 0:
                     command = "%s/parsnpA_fast %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
                 elif command == "":
-                    command = "%s/parsnp %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
+                    command = "%s/bin/parsnp %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
                 else:
-                    command = "%s/parsnp %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
+                    command = "%s/bin/parsnp %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
             else:
                 if not os.path.exists(inifile):
                     logger.error(" ini file %s does not exist!\n"%(inifile))
                     sys.exit(1)
-                command = "%s/parsnp %s"%(PARSNP_DIR,inifile)
+                command = "%s/bin/parsnp %s"%(PARSNP_DIR,inifile)
             run_command(command)
 
             if not os.path.exists(os.path.join(outputDir, "parsnpAligner.xmfa")):
