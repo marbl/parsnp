@@ -316,7 +316,7 @@ def parse_args():
         "-d",
         "--sequences",
         type = str,
-        nargs = '*',
+        nargs = '+',
         required = True,
         help = "A list of files containing genomes/contigs/scaffolds")
     input_output_args.add_argument(
