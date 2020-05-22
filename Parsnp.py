@@ -2,6 +2,9 @@
 # See the LICENSE file included with this software for license information.
 
 import os, sys, string, getopt, random,subprocess, time, glob,operator, math, datetime,numpy #pysam
+from collections import defaultdict
+import csv
+import tempfile
 import shutil
 import re
 import logging
@@ -370,6 +373,30 @@ def parse_args():
         action = "store_true",
         help = "Calculate MUMi and exit? overrides all other choices!")
 
+    MUMi_rec_prog = MUMi_args.add_mutually_exclusive_group()
+    MUMi_rec_prog.add_argument(
+        "--use-mummer-mumi",
+        action = "store_true",
+        help = "Use mummer for MUMi distance genome recruitment")
+    MUMi_rec_prog.add_argument(
+        "--use-ani",
+        action = "store_true",
+        help = "Use ani for genome recruitment")
+    MUMi_args.add_argument(
+        "--min-ani",
+        type = float,
+        default = 90,
+        help = "Min ANI value to allow for genome recruitment.")
+    MUMi_rec_prog.add_argument(
+        "--use-mash",
+        action = "store_true",
+        help = "Use mash for genome recruitment")
+    MUMi_args.add_argument(
+        "--max-mash-dist",
+        type = float,
+        default = .1,
+        help = "Max mash distance.")
+
     MUM_search_args = parser.add_argument_group(title="MUM search")
     #new, default to lower, 12-17
     MUM_search_args.add_argument(
@@ -515,9 +542,16 @@ if __name__ == "__main__":
     currdir = os.getcwd()
     logging_level = logging.DEBUG if args.verbose else logging.INFO
     ref = args.reference
+    if ref == '!':
+        randomly_selected_ref = True
     input_files = args.sequences
     query = args.query
     anchor = args.min_anchor_length
+    #TODO I'm guessing mummer_mumi was intended to be an option?
+    use_mummer_mumi = args.use_mummer_mumi
+    use_ani = args.use_ani
+    use_mash = args.use_mash
+    use_parsnp_mumi = not (use_mash or use_mummer_mumi or use_ani)
     mum = args.mum_length
     maxpartition = args.max_partition_size
     fastmum = args.fastmum
@@ -536,6 +570,8 @@ if __name__ == "__main__":
     inifile_exists = args.inifile is not None
     mumi_only = args.mumi_only
     mumidistance = args.max_mumi_distr_dist
+    max_mash_dist = args.max_mash_dist
+    min_ani_cutoff = args.min_ani
     outputDir = args.output_dir
     probe = args.probe
     genbank_file = ""
@@ -784,8 +820,8 @@ SETTINGS:
         fnaf_sizes[input_file] = seqlen
         ff.close()
 
-    if ref in fnafiles:
-        fnafiles.remove(ref)
+    # if ref in fnafiles:
+        # fnafiles.remove(ref)
 
     #sort reference by largest replicon to smallest
     if sortem and os.path.exists(ref) and not autopick_ref:
@@ -865,9 +901,6 @@ SETTINGS:
 
     TOTSEQS= len(fnafiles) + 1
     seqids_list = []
-    #TODO I'm guessing mummer_mumi was intended to be an option?
-    use_mummer_mumi = False
-    use_parsnp_mumi = True
 
     if len(fnafiles) < 1 or ref == "":
         logger.critical("Parsnp requires 2 or more genomes to run, exiting")
@@ -875,66 +908,135 @@ SETTINGS:
         sys.exit(1)
 
     mumi_dict = {}
-    if use_parsnp_mumi and not curated:
-        logger.info("Recruiting genomes")
-        if not inifile_exists:
-            command = "%s/bin/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
+    if not curated:
+        logger.info("Recruiting genomes...")
+        finalfiles = []
+        auto_ref = ""
+        if use_parsnp_mumi:
+            if not inifile_exists:
+                command = "%s/bin/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
+            else:
+                # TODO why are we editing the suffix of a provided file?
+                command = "%s/bin/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
+            run_command(command)
+            try:
+                mumif = open(os.path.join(outputDir, "all.mumi"),'r')
+                for line in mumif:
+                    line = line.rstrip('\n')
+                    idx, mi = line.split(":")
+                    mumi_dict[int(idx)-1] = float(mi)
+            except IOError:
+                logger.error("MUMi file generation failed... use all?")
+                for i, _ in enumerate(fnafiles):
+                    mumi_dict[i] = 1
+            lowest_mumi = 100
+
+            if autopick_ref:
+                for idx in list(mumi_dict.keys()):
+                    #TODO is there a way to organize these via dict rather than list? Seems error prone
+                    if mumi_dict[idx] < lowest_mumi:
+                        auto_ref = fnafiles[idx]
+                        ref = auto_ref
+                        lowest_mumi = mumi_dict[idx]
+            mumi_f = ""
+            if mumi_only and not curated:
+                mumi_f = open(os.path.join(outputDir, "recruited_genomes.lst"),'w')
+
+
+            sorted_x = sorted(iter(mumi_dict.items()), key=operator.itemgetter(1))
+            mumivals = []
+            for scnt, item in enumerate(sorted_x):
+                if scnt > 100 or scnt >= len(sorted_x):
+                    break
+                if float(item[1]) < float(mumidistance):
+                    mumivals.append(float(item[1]))
+            minv = minv = numpy.percentile(mumivals, 0) if len(mumivals) > 0 else 1.0
+            dvals = mumivals
+
+            stdv = 0
+            hpv = 0
+            if len(dvals) > 0:
+                stdv = numpy.std(dvals)
+                hpv = minv + (3*stdv)
+
+            for idx in mumi_dict.keys():
+                if mumi_dict[idx] < (float(mumidistance)) or curated:
+                    if fastmum and mumi_dict[idx] > hpv:
+                        continue
+                    #TODO if 1, why is this?
+                    if 1 or auto_ref != fnafiles[idx]:
+                        if mumi_only:
+                            mumi_f.write(os.path.abspath(fnafiles[idx])+",%f"%(mumi_dict[idx])+"\n")
+                        finalfiles.append(fnafiles[idx])
+                        allfiles.append(fnafiles[idx])
+
         else:
-            # TODO why are we editing the suffix of a provided file?
-            command = "%s/bin/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
-        run_command(command)
-        try:
-            mumif = open(os.path.join(outputDir, "all.mumi"),'r')
-            for line in mumif:
-                line = line.rstrip('\n')
-                idx, mi = line.split(":")
-                mumi_dict[int(idx)-1] = float(mi)
-        except IOError:
-            logger.error("MUMi file generation failed... use all?")
-            for i, _ in enumerate(fnafiles):
-                mumi_dict[i] = 1
-    finalfiles = []
-    lowest_mumi = 100
-    auto_ref = ""
-
-    if autopick_ref:
-        for idx in list(mumi_dict.keys()):
-            #TODO is there a way to organize these via dict rather than list? Seems error prone
-            if mumi_dict[idx] < lowest_mumi:
-                auto_ref = fnafiles[idx]
-                ref = auto_ref
-                lowest_mumi = mumi_dict[idx]
-    mumi_f = ""
-    if mumi_only and not curated:
-        mumi_f = open(os.path.join(outputDir, "recruited_genomes.lst"),'w')
-
-
-    sorted_x = sorted(iter(mumi_dict.items()), key=operator.itemgetter(1))
-    mumivals = []
-    for scnt, item in enumerate(sorted_x):
-        if scnt > 100 or scnt >= len(sorted_x):
-            break
-        if float(item[1]) < float(mumidistance):
-            mumivals.append(float(item[1]))
-    minv = minv = numpy.percentile(mumivals, 0) if len(mumivals) > 0 else 1.0
-    dvals = mumivals
-
-    stdv = 0
-    hpv = 0
-    if len(dvals) > 0:
-        stdv = numpy.std(dvals)
-        hpv = minv + (3*stdv)
-
-    for idx in mumi_dict.keys():
-        if mumi_dict[idx] < (float(mumidistance)) or curated:
-            if fastmum and mumi_dict[idx] > hpv:
-                continue
-            #TODO if 1, why is this?
-            if 1 or auto_ref != fnafiles[idx]:
-                if mumi_only:
-                    mumi_f.write(os.path.abspath(fnafiles[idx])+",%f"%(mumi_dict[idx])+"\n")
-                finalfiles.append(fnafiles[idx])
-                allfiles.append(fnafiles[idx])
+            try:
+                # tmp_dir = tempfile.mkdtemp()
+                tmp_dir = outputDir
+                all_genomes_fname = os.path.join(tmp_dir, "genomes.lst")
+                # with open(all_genomes_fname, 'w') as all_genomes_file:
+                    # all_genomes_file.write("\n".join(fnafiles))
+                for f in fnafiles:
+                    print(f)
+                if use_mash:
+                    if randomly_selected_ref:
+                        logger.warning("You are using a randomly selected genome to recruit genomes from your input...")
+                    mash_out = subprocess.check_output([
+                            "mash", "dist", "-t", 
+                            "-d", str(max_mash_dist), 
+                            "-p", str(threads), 
+                            ref, 
+                            "-l", all_genomes_fname],
+                        stderr=open(os.path.join(outputDir, "mash.err"), 'w')).decode('utf-8')
+                    finalfiles = [line.split('\t')[0] for line in mash_out.split('\n')[1:] if line != '']
+                elif use_ani:
+                    if randomly_selected_ref:
+                        print(" ".join([
+                                "fastANI", 
+                                "--ql", all_genomes_fname, 
+                                "--rl", all_genomes_fname, 
+                                "-t", str(threads),
+                                "-o", os.path.join(outputDir, "fastANI.tsv")]))
+                        subprocess.check_call([
+                                "fastANI", 
+                                "--ql", all_genomes_fname, 
+                                "--rl", all_genomes_fname, 
+                                "-t", str(threads),
+                                "-o", os.path.join(outputDir, "fastANI.tsv")],
+                            stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
+                    else:
+                        subprocess.check_call([
+                                "fastANI", 
+                                "--q", ref, 
+                                "--rl", all_genomes_fname, 
+                                "-t", str(threads),
+                                "-o", os.path.join(outputDir, "fastANI.tsv")],
+                            stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
+                    genome_to_genomes = defaultdict(set)
+                    with open(os.path.join(outputDir, "fastANI.tsv")) as results:
+                        print(len(list(results)))
+                    with open(os.path.join(outputDir, "fastANI.tsv")) as results:
+                        for line in results:
+                            # FastANI results file -> Query, Ref, ANI val, extra stuff,,,
+                            line = line.split('\t')
+                            # if float(line[2]) >= min_ani_cutoff:
+                            genome_to_genomes[line[0]].add(line[1])
+                        
+                        # for g in genome_to_genomes:
+                            # print(len(g))
+                        ani_ref = max(genome_to_genomes, key=(lambda key: len(genome_to_genomes[key])))
+                        if autopick_ref:
+                            auto_ref = ani_ref
+                        finalfiles = list(genome_to_genomes[ani_ref])
+                        print(set(fnafiles).difference(set(finalfiles)))
+                        
+                # shutil.rmtree(tmp_dir)
+            except subprocess.CalledProcessError as e:
+                logger.critical(
+                    "Recruitment failed with exception {}. More details may be found in the *.err output log".format(str(e))) 
+                # shutil.rmtree(tmp_dir)
+            allfiles.extend(finalfiles)
 
     if curated:
         for f in fnafiles:
