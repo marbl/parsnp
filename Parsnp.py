@@ -22,7 +22,6 @@ except ImportError:
     reroot_tree = False
 
 #check for sane file names
-special_chars = [",","[","]","{","}","(",")","!","\'","\"","*","\%","\<" ,"\>", "|", " ", "`"]
 ALIGNER_TO_IDX = {
         "mafft": "1",
         "muscle": "2",
@@ -31,7 +30,7 @@ ALIGNER_TO_IDX = {
 }
 
 VERBOSE = 0
-VERSION = "v1.2"
+VERSION = "v1.5"
 PHI_WINDOWSIZE = 1000
 TOTSEQS=0
 PARSNP_DIR = sys.path[0]
@@ -127,6 +126,7 @@ if checkStderr != b"":
     sys.stderr.write(WARNING_YELLOW+"Warning: Cannot determine OS, defaulting to %s\n"%(OSTYPE)+ENDC)
 else:
     OSTYPE = checkStdout.decode('utf-8').strip()
+
 binary_type = "linux"
 if OSTYPE == "Darwin":
     binary_type = "osx"
