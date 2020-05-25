@@ -192,18 +192,6 @@ def run_fasttree(query,workingdir,recombination_sites):
     os.chdir(currdir)
 
 
-def run_bng(query,workingdir):
-    currdir = os.getcwd()
-    os.chdir(workingdir)
-    command = "%s/run_fasta"%()
-    run_command(command, 1)
-    command = "%s/run_fasta"%()
-    run_command(command, 1)
-    command = "%s/run_fasta"%()
-    run_command(command, 1)
-    os.chdir(currdir)
-
-
 #TODO Merge wrappers
 def parallelWrapper(params):
    try:
