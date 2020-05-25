@@ -180,14 +180,14 @@ signal.signal(signal.SIGINT, handler)
 def run_phipack(query,seqlen,workingdir):
     currdir = os.getcwd()
     os.chdir(workingdir)
-    command = "%s/bin/phiprofile -o -v -n %d -w 100 -m 100 -f %s > %s.out"%(PARSNP_DIR,seqlen,query,query)
+    command = "phiprofile -o -v -n %d -w 100 -m 100 -f %s > %s.out"%(seqlen,query,query)
     run_command(command,1)
     os.chdir(currdir)
 
 def run_fasttree(query,workingdir,recombination_sites):
     currdir = os.getcwd()
     os.chdir(workingdir)
-    command = "%s/bin/ft -nt -quote -gamma -slow -boot 100 seq.fna > out.tree"%(PARSNP_DIR)
+    command = "fasttree -nt -quote -gamma -slow -boot 100 seq.fna > out.tree"
     run_command(command,1)
     os.chdir(currdir)
 
@@ -1308,21 +1308,21 @@ Please verify recruited genomes are all strain of interest""")
     if xtrafast or 1:
         #add genbank here, if present
         if len(genbank_ref) != 0:
-            rnc = "%s/bin/harvest -q -o %s/parsnp.ggr -x "%(PARSNP_DIR,outputDir)+outputDir+os.sep+"parsnp.xmfa"
+            rnc = "harvest -q -o %s/parsnp.ggr -x "%(outputDir)+outputDir+os.sep+"parsnp.xmfa"
             for file in genbank_files:
                 rnc += " -g %s " %(file)
             run_command(rnc)
         else:
-            run_command("%s/bin/harvest -q -o %s/parsnp.ggr -f %s -x "%(PARSNP_DIR,outputDir,ref)+outputDir+os.sep+"parsnp.xmfa")
+            run_command("harvest -q -o %s/parsnp.ggr -f %s -x "%(outputDir,ref)+outputDir+os.sep+"parsnp.xmfa")
 
         if run_recomb_filter:
-            run_command("%s/bin/harvest -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(PARSNP_DIR,outputDir,outputDir,outputDir))
+            run_command("harvest -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir))
         if run_repeat_filter:
-            run_command("%s/bin/harvest -q -b %s,REP,\"Intragenomic repeats > 100bp\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(PARSNP_DIR,repfile,outputDir,outputDir))
+            run_command("harvest -q -b %s,REP,\"Intragenomic repeats > 100bp\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(repfile,outputDir,outputDir))
 
-        run_command("%s/bin/harvest -q -i %s/parsnp.ggr -S "%(PARSNP_DIR,outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
+        run_command("harvest -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
 
-    command = "%s/bin/ft -nt -quote -gamma -slow -boot 100 "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
+    command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
     logger.info("Reconstructing core genome phylogeny...")
     run_command(command)
     #7)reroot to midpoint
@@ -1351,7 +1351,7 @@ Please verify recruited genomes are all strain of interest""")
         if xtrafast or 1:
             #if newick available, add
             #new flag to update branch lengths
-            run_command("%s/bin/harvest --midpoint-reroot -u -q -i "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
+            run_command("harvest --midpoint-reroot -u -q -i "+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
 
 
     if float(elapsed)/float(60.0) > 60:
