@@ -137,12 +137,12 @@ else:
 # Should save parsnp alias for the main entry point 
 # if not os.path.lexists("%s/bin/parsnp"%(PARSNP_DIR)):
     # os.system("ln -s %s/bin/parsnp %s/bin/parsnp"%(PARSNP_DIR, PARSNP_DIR))
-if not os.path.lexists("%s/bin/harvest"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/harvest_%s %s/bin/harvest"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.lexists("%s/bin/ft"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/fasttree_%s %s/bin/ft"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.lexists("%s/bin/phiprofile"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/Profile_%s %s/bin/phiprofile"%(PARSNP_DIR,binary_type,PARSNP_DIR))
+if not os.path.lexists("%s/bin/harvesttools"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/harvest_%s %s/bin/harvesttools"%(PARSNP_DIR,binary_type,PARSNP_DIR))
+if not os.path.lexists("%s/bin/fasttree"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/fasttree_%s %s/bin/fasttree"%(PARSNP_DIR,binary_type,PARSNP_DIR))
+if not os.path.lexists("%s/bin/Profile"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/Profile_%s %s/bin/Profile"%(PARSNP_DIR,binary_type,PARSNP_DIR))
 ####################################################################################################
 
 
@@ -180,7 +180,7 @@ signal.signal(signal.SIGINT, handler)
 def run_phipack(query,seqlen,workingdir):
     currdir = os.getcwd()
     os.chdir(workingdir)
-    command = "phiprofile -o -v -n %d -w 100 -m 100 -f %s > %s.out"%(seqlen,query,query)
+    command = "Profile -o -v -n %d -w 100 -m 100 -f %s > %s.out"%(seqlen,query,query)
     run_command(command,1)
     os.chdir(currdir)
 
@@ -896,10 +896,10 @@ SETTINGS:
         sys.exit(1)
 
     mumi_dict = {}
+    finalfiles = []
+    auto_ref = ""
     if not curated:
         logger.info("Recruiting genomes...")
-        finalfiles = []
-        auto_ref = ""
         if use_parsnp_mumi:
             if not inifile_exists:
                 command = "%s/bin/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
@@ -960,13 +960,8 @@ SETTINGS:
 
         else:
             try:
-                # tmp_dir = tempfile.mkdtemp()
                 tmp_dir = outputDir
                 all_genomes_fname = os.path.join(tmp_dir, "genomes.lst")
-                # with open(all_genomes_fname, 'w') as all_genomes_file:
-                    # all_genomes_file.write("\n".join(fnafiles))
-                for f in fnafiles:
-                    print(f)
                 if use_mash:
                     if randomly_selected_ref:
                         logger.warning("You are using a randomly selected genome to recruit genomes from your input...")
@@ -980,12 +975,6 @@ SETTINGS:
                     finalfiles = [line.split('\t')[0] for line in mash_out.split('\n')[1:] if line != '']
                 elif use_ani:
                     if randomly_selected_ref:
-                        print(" ".join([
-                                "fastANI", 
-                                "--ql", all_genomes_fname, 
-                                "--rl", all_genomes_fname, 
-                                "-t", str(threads),
-                                "-o", os.path.join(outputDir, "fastANI.tsv")]))
                         subprocess.check_call([
                                 "fastANI", 
                                 "--ql", all_genomes_fname, 
@@ -1003,8 +992,6 @@ SETTINGS:
                             stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
                     genome_to_genomes = defaultdict(set)
                     with open(os.path.join(outputDir, "fastANI.tsv")) as results:
-                        print(len(list(results)))
-                    with open(os.path.join(outputDir, "fastANI.tsv")) as results:
                         for line in results:
                             # FastANI results file -> Query, Ref, ANI val, extra stuff,,,
                             line = line.split('\t')
@@ -1017,7 +1004,6 @@ SETTINGS:
                         if autopick_ref:
                             auto_ref = ani_ref
                         finalfiles = list(genome_to_genomes[ani_ref])
-                        print(set(fnafiles).difference(set(finalfiles)))
                         
                 # shutil.rmtree(tmp_dir)
             except subprocess.CalledProcessError as e:
@@ -1308,19 +1294,19 @@ Please verify recruited genomes are all strain of interest""")
     if xtrafast or 1:
         #add genbank here, if present
         if len(genbank_ref) != 0:
-            rnc = "harvest -q -o %s/parsnp.ggr -x "%(outputDir)+outputDir+os.sep+"parsnp.xmfa"
+            rnc = "harvesttools -q -o %s/parsnp.ggr -x "%(outputDir)+outputDir+os.sep+"parsnp.xmfa"
             for file in genbank_files:
                 rnc += " -g %s " %(file)
             run_command(rnc)
         else:
-            run_command("harvest -q -o %s/parsnp.ggr -f %s -x "%(outputDir,ref)+outputDir+os.sep+"parsnp.xmfa")
+            run_command("harvesttools -q -o %s/parsnp.ggr -f %s -x "%(outputDir,ref)+outputDir+os.sep+"parsnp.xmfa")
 
         if run_recomb_filter:
-            run_command("harvest -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir))
+            run_command("harvesttools -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir))
         if run_repeat_filter:
-            run_command("harvest -q -b %s,REP,\"Intragenomic repeats > 100bp\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(repfile,outputDir,outputDir))
+            run_command("harvesttools -q -b %s,REP,\"Intragenomic repeats > 100bp\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(repfile,outputDir,outputDir))
 
-        run_command("harvest -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
+        run_command("harvesttools -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
 
     command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
     logger.info("Reconstructing core genome phylogeny...")
@@ -1351,7 +1337,7 @@ Please verify recruited genomes are all strain of interest""")
         if xtrafast or 1:
             #if newick available, add
             #new flag to update branch lengths
-            run_command("harvest --midpoint-reroot -u -q -i "+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
+            run_command("harvesttools --midpoint-reroot -u -q -i "+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
 
 
     if float(elapsed)/float(60.0) > 60:
