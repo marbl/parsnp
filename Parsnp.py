@@ -13,7 +13,7 @@ import signal
 import inspect
 from multiprocessing import *
 
-__version__ = "1.2"
+__version__ = "1.5"
 reroot_tree = True #use --midpoint-reroot
 
 try:
@@ -259,8 +259,8 @@ def run_command(command,ignorerc=0):
    p = subprocess.Popen(command, shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE,close_fds=True,executable="/bin/bash")
    fstdout,fstderr = p.communicate()
    rc = p.returncode
-   logging.debug(fstdout)
-   logging.debug(fstderr)
+   logger.debug(fstdout)
+   logger.debug(fstderr)
 
    if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
       logger.error("""The following command failed:
@@ -478,7 +478,7 @@ def parse_args():
         action = "version",
         version = "%(prog)s " + __version__)
 
-    todo_args = parser.add_argument_group("Need to be placed in a group")
+    todo_args = parser.add_argument_group("Miscellaneous")
     todo_args.add_argument(
         "-e",
         "--extend",
@@ -501,6 +501,10 @@ def parse_args():
         "--inifile",
         "--ini-file",
         type = str)
+    todo_args.add_argument(
+        "--use-fasttree",
+        action = "store_true",
+        help = "Use fasttree instead of RaxML")
     todo_args.add_argument(
         "-m",
         "--mum-length",
@@ -1308,12 +1312,20 @@ Please verify recruited genomes are all strain of interest""")
 
         run_command("harvesttools -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
 
-    command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
     logger.info("Reconstructing core genome phylogeny...")
-    run_command(command)
+    if args.use_fasttree:
+        command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
+        run_command(command)
+    else:
+        with tempfile.TemporaryDirectory() as raxml_output_dir:
+            command = "raxmlHPC -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
+            run_command(command)
+            os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
+
+
     #7)reroot to midpoint
     if os.path.exists("outtree"):
-        os.remove("outtree")
+         os.remove("outtree")
 
     if reroot_tree and len(finalfiles) > 1:
         try:
@@ -1329,7 +1341,7 @@ Please verify recruited genomes are all strain of interest""")
             mtreef.close()
             os.system("mv %s %s"%(outputDir+os.sep+"parsnp.final.tree",outputDir+os.sep+"parsnp.tree"))
         except IOError:
-            logger.error("Cannot process fasttree output, skipping midpoint reroot..\n")
+            logger.error("Cannot process {} output, skipping midpoint reroot..\n".format("fasttree" if args.use_fasttree else "RaxML"))
 
 
     if len(use_gingr) > 0:
