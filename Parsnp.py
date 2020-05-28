@@ -1,7 +1,10 @@
+#!/usr/bin/env python
 # See the LICENSE file included with this software for license information.
 
-
 import os, sys, string, getopt, random,subprocess, time, glob,operator, math, datetime,numpy #pysam
+from collections import defaultdict
+import csv
+import tempfile
 import shutil
 import re
 import logging
@@ -10,7 +13,7 @@ import signal
 import inspect
 from multiprocessing import *
 
-__version__ = "1.2"
+__version__ = "1.5"
 reroot_tree = True #use --midpoint-reroot
 
 try:
@@ -19,7 +22,6 @@ except ImportError:
     reroot_tree = False
 
 #check for sane file names
-special_chars = [",","[","]","{","}","(",")","!","\'","\"","*","\%","\<" ,"\>", "|", " ", "`"]
 ALIGNER_TO_IDX = {
         "mafft": "1",
         "muscle": "2",
@@ -28,7 +30,7 @@ ALIGNER_TO_IDX = {
 }
 
 VERBOSE = 0
-VERSION = "v1.2"
+VERSION = "v1.5"
 PHI_WINDOWSIZE = 1000
 TOTSEQS=0
 PARSNP_DIR = sys.path[0]
@@ -124,6 +126,7 @@ if checkStderr != b"":
     sys.stderr.write(WARNING_YELLOW+"Warning: Cannot determine OS, defaulting to %s\n"%(OSTYPE)+ENDC)
 else:
     OSTYPE = checkStdout.decode('utf-8').strip()
+
 binary_type = "linux"
 if OSTYPE == "Darwin":
     binary_type = "osx"
@@ -131,14 +134,15 @@ else:
     binary_type = "linux"
 
 
-if not os.path.lexists("%s/bin/parsnp"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/parsnp %s/bin/parsnp"%(PARSNP_DIR, PARSNP_DIR))
-if not os.path.lexists("%s/bin/harvest"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/harvest_%s %s/bin/harvest"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.lexists("%s/bin/ft"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/fasttree_%s %s/bin/ft"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.lexists("%s/bin/phiprofile"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/Profile_%s %s/bin/phiprofile"%(PARSNP_DIR,binary_type,PARSNP_DIR))
+# Should save parsnp alias for the main entry point 
+# if not os.path.lexists("%s/bin/parsnp"%(PARSNP_DIR)):
+    # os.system("ln -s %s/bin/parsnp %s/bin/parsnp"%(PARSNP_DIR, PARSNP_DIR))
+if not os.path.lexists("%s/bin/harvesttools"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/harvest_%s %s/bin/harvesttools"%(PARSNP_DIR,binary_type,PARSNP_DIR))
+if not os.path.lexists("%s/bin/fasttree"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/fasttree_%s %s/bin/fasttree"%(PARSNP_DIR,binary_type,PARSNP_DIR))
+if not os.path.lexists("%s/bin/Profile"%(PARSNP_DIR)):
+    os.system("ln -s %s/bin/Profile_%s %s/bin/Profile"%(PARSNP_DIR,binary_type,PARSNP_DIR))
 ####################################################################################################
 
 
@@ -176,27 +180,15 @@ signal.signal(signal.SIGINT, handler)
 def run_phipack(query,seqlen,workingdir):
     currdir = os.getcwd()
     os.chdir(workingdir)
-    command = "%s/bin/phiprofile -o -v -n %d -w 100 -m 100 -f %s > %s.out"%(PARSNP_DIR,seqlen,query,query)
+    command = "Profile -o -v -n %d -w 100 -m 100 -f %s > %s.out"%(seqlen,query,query)
     run_command(command,1)
     os.chdir(currdir)
 
 def run_fasttree(query,workingdir,recombination_sites):
     currdir = os.getcwd()
     os.chdir(workingdir)
-    command = "%s/bin/ft -nt -quote -gamma -slow -boot 100 seq.fna > out.tree"%(PARSNP_DIR)
+    command = "fasttree -nt -quote -gamma -slow -boot 100 seq.fna > out.tree"
     run_command(command,1)
-    os.chdir(currdir)
-
-
-def run_bng(query,workingdir):
-    currdir = os.getcwd()
-    os.chdir(workingdir)
-    command = "%s/run_fasta"%()
-    run_command(command, 1)
-    command = "%s/run_fasta"%()
-    run_command(command, 1)
-    command = "%s/run_fasta"%()
-    run_command(command, 1)
     os.chdir(currdir)
 
 
@@ -267,8 +259,8 @@ def run_command(command,ignorerc=0):
    p = subprocess.Popen(command, shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE,close_fds=True,executable="/bin/bash")
    fstdout,fstderr = p.communicate()
    rc = p.returncode
-   if VERBOSE:
-      logging.debug(fstderr)
+   logger.debug(fstdout)
+   logger.debug(fstderr)
 
    if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
       logger.error("""The following command failed:
@@ -315,7 +307,8 @@ def parse_args():
         "-d",
         "--sequences",
         type = str,
-        nargs = '*',
+        nargs = '+',
+        required = True,
         help = "A list of files containing genomes/contigs/scaffolds")
     input_output_args.add_argument(
         "-r",
@@ -367,6 +360,30 @@ def parse_args():
         "--onlymumi",
         action = "store_true",
         help = "Calculate MUMi and exit? overrides all other choices!")
+
+    MUMi_rec_prog = MUMi_args.add_mutually_exclusive_group()
+    MUMi_rec_prog.add_argument(
+        "--use-mummer-mumi",
+        action = "store_true",
+        help = "Use mummer for MUMi distance genome recruitment")
+    MUMi_rec_prog.add_argument(
+        "--use-ani",
+        action = "store_true",
+        help = "Use ani for genome recruitment")
+    MUMi_args.add_argument(
+        "--min-ani",
+        type = float,
+        default = 90,
+        help = "Min ANI value to allow for genome recruitment.")
+    MUMi_rec_prog.add_argument(
+        "--use-mash",
+        action = "store_true",
+        help = "Use mash for genome recruitment")
+    MUMi_args.add_argument(
+        "--max-mash-dist",
+        type = float,
+        default = .1,
+        help = "Max mash distance.")
 
     MUM_search_args = parser.add_argument_group(title="MUM search")
     #new, default to lower, 12-17
@@ -461,7 +478,7 @@ def parse_args():
         action = "version",
         version = "%(prog)s " + __version__)
 
-    todo_args = parser.add_argument_group("Need to be placed in a group")
+    todo_args = parser.add_argument_group("Miscellaneous")
     todo_args.add_argument(
         "-e",
         "--extend",
@@ -484,6 +501,10 @@ def parse_args():
         "--inifile",
         "--ini-file",
         type = str)
+    todo_args.add_argument(
+        "--use-fasttree",
+        action = "store_true",
+        help = "Use fasttree instead of RaxML")
     todo_args.add_argument(
         "-m",
         "--mum-length",
@@ -513,9 +534,16 @@ if __name__ == "__main__":
     currdir = os.getcwd()
     logging_level = logging.DEBUG if args.verbose else logging.INFO
     ref = args.reference
+    if ref == '!':
+        randomly_selected_ref = True
     input_files = args.sequences
     query = args.query
     anchor = args.min_anchor_length
+    #TODO I'm guessing mummer_mumi was intended to be an option?
+    use_mummer_mumi = args.use_mummer_mumi
+    use_ani = args.use_ani
+    use_mash = args.use_mash
+    use_parsnp_mumi = not (use_mash or use_mummer_mumi or use_ani)
     mum = args.mum_length
     maxpartition = args.max_partition_size
     fastmum = args.fastmum
@@ -534,6 +562,8 @@ if __name__ == "__main__":
     inifile_exists = args.inifile is not None
     mumi_only = args.mumi_only
     mumidistance = args.max_mumi_distr_dist
+    max_mash_dist = args.max_mash_dist
+    min_ani_cutoff = args.min_ani
     outputDir = args.output_dir
     probe = args.probe
     genbank_file = ""
@@ -728,9 +758,9 @@ SETTINGS:
     logger.info("<<Parsnp started>>")
 
     #1)read fasta files (contigs/scaffolds/finished/DBs/dirs)
-    logger.info("Reading Genbank file(s) for reference (.gbk) %s"%("\t".join(genbank_files)))
+    # logger.info("Reading Genbank file(s) for reference (.gbk) %s"%("\t".join(genbank_files)))
     if len(genbank_file) == 0:
-        logger.warning("No genbank file provided for reference annotations, skipping..")
+        logger.info("No genbank file provided for reference annotations, skipping..")
 
     allfiles = []
     fnaf_sizes = {}
@@ -745,11 +775,11 @@ SETTINGS:
         hdr = ff.readline()
         seq = ff.read()
         if hdr[0] != ">":
-            logger.critical(" Reference {} has improperly formatted header.".format(ref))
+            logger.critical("Reference {} has improperly formatted header.".format(ref))
             sys.exit(1)
-        if '-' in seq:
-            logger.warning(" Reference genome sequence %s seems to aligned! remove and restart. "%((ref)))
-            # sys.exit(1)
+        for line in seq.split('\n'):
+            if '-' in line and line[0] != ">":
+                logger.warning("Reference genome sequence %s has '-' in the sequence!"%((ref)))
         reflen = len(seq) - seq.count('\n')
 
     for input_file in input_files:
@@ -772,18 +802,18 @@ SETTINGS:
         # EDITED THIS TO CHANGE GENOME THRESHOLD
         # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
         if not args.probe and sizediff <= 0.6:
-                logger.warning(" File %s is too long compared to reference!"%(input_file))
+                logger.warning("File %s is too long compared to reference!"%(input_file))
                 continue
         else:
             if sizediff >= 1.4:
-                logger.warning(" File %s is too short compared to reference genome!"%(input_file))
+                logger.warning("File %s is too short compared to reference genome!"%(input_file))
                 continue
         fnafiles.append(input_file)
         fnaf_sizes[input_file] = seqlen
         ff.close()
 
-    if ref in fnafiles:
-        fnafiles.remove(ref)
+    # if ref in fnafiles:
+        # fnafiles.remove(ref)
 
     #sort reference by largest replicon to smallest
     if sortem and os.path.exists(ref) and not autopick_ref:
@@ -863,9 +893,6 @@ SETTINGS:
 
     TOTSEQS= len(fnafiles) + 1
     seqids_list = []
-    #TODO I'm guessing mummer_mumi was intended to be an option?
-    use_mummer_mumi = False
-    use_parsnp_mumi = True
 
     if len(fnafiles) < 1 or ref == "":
         logger.critical("Parsnp requires 2 or more genomes to run, exiting")
@@ -873,66 +900,121 @@ SETTINGS:
         sys.exit(1)
 
     mumi_dict = {}
-    if use_parsnp_mumi and not curated:
-        logger.info("Recruiting genomes")
-        if not inifile_exists:
-            command = "%s/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
-        else:
-            # TODO why are we editing the suffix of a provided file?
-            command = "%s/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
-        run_command(command)
-        try:
-            mumif = open(os.path.join(outputDir, "all.mumi"),'r')
-            for line in mumif:
-                line = line.rstrip('\n')
-                idx, mi = line.split(":")
-                mumi_dict[int(idx)-1] = float(mi)
-        except IOError:
-            logger.error("MUMi file generation failed... use all?")
-            for i, _ in enumerate(fnafiles):
-                mumi_dict[i] = 1
     finalfiles = []
-    lowest_mumi = 100
     auto_ref = ""
+    if not curated:
+        logger.info("Recruiting genomes...")
+        if use_parsnp_mumi:
+            if not inifile_exists:
+                command = "%s/bin/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
+            else:
+                # TODO why are we editing the suffix of a provided file?
+                command = "%s/bin/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
+            run_command(command)
+            try:
+                mumif = open(os.path.join(outputDir, "all.mumi"),'r')
+                for line in mumif:
+                    line = line.rstrip('\n')
+                    idx, mi = line.split(":")
+                    mumi_dict[int(idx)-1] = float(mi)
+            except IOError:
+                logger.error("MUMi file generation failed... use all?")
+                for i, _ in enumerate(fnafiles):
+                    mumi_dict[i] = 1
+            lowest_mumi = 100
 
-    if autopick_ref:
-        for idx in list(mumi_dict.keys()):
-            #TODO is there a way to organize these via dict rather than list? Seems error prone
-            if mumi_dict[idx] < lowest_mumi:
-                auto_ref = fnafiles[idx]
-                ref = auto_ref
-                lowest_mumi = mumi_dict[idx]
-    mumi_f = ""
-    if mumi_only and not curated:
-        mumi_f = open(os.path.join(outputDir, "recruited_genomes.lst"),'w')
+            if autopick_ref:
+                for idx in list(mumi_dict.keys()):
+                    #TODO is there a way to organize these via dict rather than list? Seems error prone
+                    if mumi_dict[idx] < lowest_mumi:
+                        auto_ref = fnafiles[idx]
+                        ref = auto_ref
+                        lowest_mumi = mumi_dict[idx]
+            mumi_f = ""
+            if mumi_only and not curated:
+                mumi_f = open(os.path.join(outputDir, "recruited_genomes.lst"),'w')
 
 
-    sorted_x = sorted(iter(mumi_dict.items()), key=operator.itemgetter(1))
-    mumivals = []
-    for scnt, item in enumerate(sorted_x):
-        if scnt > 100 or scnt >= len(sorted_x):
-            break
-        if float(item[1]) < float(mumidistance):
-            mumivals.append(float(item[1]))
-    minv = minv = numpy.percentile(mumivals, 0) if len(mumivals) > 0 else 1.0
-    dvals = mumivals
+            sorted_x = sorted(iter(mumi_dict.items()), key=operator.itemgetter(1))
+            mumivals = []
+            for scnt, item in enumerate(sorted_x):
+                if scnt > 100 or scnt >= len(sorted_x):
+                    break
+                if float(item[1]) < float(mumidistance):
+                    mumivals.append(float(item[1]))
+            minv = minv = numpy.percentile(mumivals, 0) if len(mumivals) > 0 else 1.0
+            dvals = mumivals
 
-    stdv = 0
-    hpv = 0
-    if len(dvals) > 0:
-        stdv = numpy.std(dvals)
-        hpv = minv + (3*stdv)
+            stdv = 0
+            hpv = 0
+            if len(dvals) > 0:
+                stdv = numpy.std(dvals)
+                hpv = minv + (3*stdv)
 
-    for idx in mumi_dict.keys():
-        if mumi_dict[idx] < (float(mumidistance)) or curated:
-            if fastmum and mumi_dict[idx] > hpv:
-                continue
-            #TODO if 1, why is this?
-            if 1 or auto_ref != fnafiles[idx]:
-                if mumi_only:
-                    mumi_f.write(os.path.abspath(fnafiles[idx])+",%f"%(mumi_dict[idx])+"\n")
-                finalfiles.append(fnafiles[idx])
-                allfiles.append(fnafiles[idx])
+            for idx in mumi_dict.keys():
+                if mumi_dict[idx] < (float(mumidistance)) or curated:
+                    if fastmum and mumi_dict[idx] > hpv:
+                        continue
+                    #TODO if 1, why is this?
+                    if 1 or auto_ref != fnafiles[idx]:
+                        if mumi_only:
+                            mumi_f.write(os.path.abspath(fnafiles[idx])+",%f"%(mumi_dict[idx])+"\n")
+                        finalfiles.append(fnafiles[idx])
+                        allfiles.append(fnafiles[idx])
+
+        else:
+            try:
+                tmp_dir = outputDir
+                all_genomes_fname = os.path.join(tmp_dir, "genomes.lst")
+                if use_mash:
+                    if randomly_selected_ref:
+                        logger.warning("You are using a randomly selected genome to recruit genomes from your input...")
+                    mash_out = subprocess.check_output([
+                            "mash", "dist", "-t", 
+                            "-d", str(max_mash_dist), 
+                            "-p", str(threads), 
+                            ref, 
+                            "-l", all_genomes_fname],
+                        stderr=open(os.path.join(outputDir, "mash.err"), 'w')).decode('utf-8')
+                    finalfiles = [line.split('\t')[0] for line in mash_out.split('\n')[1:] if line != '']
+                elif use_ani:
+                    if randomly_selected_ref:
+                        subprocess.check_call([
+                                "fastANI", 
+                                "--ql", all_genomes_fname, 
+                                "--rl", all_genomes_fname, 
+                                "-t", str(threads),
+                                "-o", os.path.join(outputDir, "fastANI.tsv")],
+                            stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
+                    else:
+                        subprocess.check_call([
+                                "fastANI", 
+                                "--q", ref, 
+                                "--rl", all_genomes_fname, 
+                                "-t", str(threads),
+                                "-o", os.path.join(outputDir, "fastANI.tsv")],
+                            stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
+                    genome_to_genomes = defaultdict(set)
+                    with open(os.path.join(outputDir, "fastANI.tsv")) as results:
+                        for line in results:
+                            # FastANI results file -> Query, Ref, ANI val, extra stuff,,,
+                            line = line.split('\t')
+                            # if float(line[2]) >= min_ani_cutoff:
+                            genome_to_genomes[line[0]].add(line[1])
+                        
+                        # for g in genome_to_genomes:
+                            # print(len(g))
+                        ani_ref = max(genome_to_genomes, key=(lambda key: len(genome_to_genomes[key])))
+                        if autopick_ref:
+                            auto_ref = ani_ref
+                        finalfiles = list(genome_to_genomes[ani_ref])
+                        
+                # shutil.rmtree(tmp_dir)
+            except subprocess.CalledProcessError as e:
+                logger.critical(
+                    "Recruitment failed with exception {}. More details may be found in the *.err output log".format(str(e))) 
+                # shutil.rmtree(tmp_dir)
+            allfiles.extend(finalfiles)
 
     if curated:
         for f in fnafiles:
@@ -1028,14 +1110,14 @@ SETTINGS:
                 if command == "" and xtrafast and 0:
                     command = "%s/parsnpA_fast %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
                 elif command == "":
-                    command = "%s/parsnp %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
+                    command = "%s/bin/parsnp %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
                 else:
-                    command = "%s/parsnp %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
+                    command = "%s/bin/parsnp %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
             else:
                 if not os.path.exists(inifile):
-                    logger.error(" ini file %s does not exist!\n"%(inifile))
+                    logger.error("ini file %s does not exist!\n"%(inifile))
                     sys.exit(1)
-                command = "%s/parsnp %s"%(PARSNP_DIR,inifile)
+                command = "%s/bin/parsnp %s"%(PARSNP_DIR,inifile)
             run_command(command)
 
             if not os.path.exists(os.path.join(outputDir, "parsnpAligner.xmfa")):
@@ -1216,26 +1298,34 @@ Please verify recruited genomes are all strain of interest""")
     if xtrafast or 1:
         #add genbank here, if present
         if len(genbank_ref) != 0:
-            rnc = "%s/bin/harvest -q -o %s/parsnp.ggr -x "%(PARSNP_DIR,outputDir)+outputDir+os.sep+"parsnp.xmfa"
+            rnc = "harvesttools -q -o %s/parsnp.ggr -x "%(outputDir)+outputDir+os.sep+"parsnp.xmfa"
             for file in genbank_files:
                 rnc += " -g %s " %(file)
             run_command(rnc)
         else:
-            run_command("%s/bin/harvest -q -o %s/parsnp.ggr -f %s -x "%(PARSNP_DIR,outputDir,ref)+outputDir+os.sep+"parsnp.xmfa")
+            run_command("harvesttools -q -o %s/parsnp.ggr -f %s -x "%(outputDir,ref)+outputDir+os.sep+"parsnp.xmfa")
 
         if run_recomb_filter:
-            run_command("%s/bin/harvest -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(PARSNP_DIR,outputDir,outputDir,outputDir))
+            run_command("harvesttools -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir))
         if run_repeat_filter:
-            run_command("%s/bin/harvest -q -b %s,REP,\"Intragenomic repeats > 100bp\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(PARSNP_DIR,repfile,outputDir,outputDir))
+            run_command("harvesttools -q -b %s,REP,\"Intragenomic repeats > 100bp\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(repfile,outputDir,outputDir))
 
-        run_command("%s/bin/harvest -q -i %s/parsnp.ggr -S "%(PARSNP_DIR,outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
+        run_command("harvesttools -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
 
-    command = "%s/bin/ft -nt -quote -gamma -slow -boot 100 "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
     logger.info("Reconstructing core genome phylogeny...")
-    run_command(command)
+    if args.use_fasttree:
+        command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
+        run_command(command)
+    else:
+        with tempfile.TemporaryDirectory() as raxml_output_dir:
+            command = "raxmlHPC -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
+            run_command(command)
+            os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
+
+
     #7)reroot to midpoint
     if os.path.exists("outtree"):
-        os.remove("outtree")
+         os.remove("outtree")
 
     if reroot_tree and len(finalfiles) > 1:
         try:
@@ -1251,7 +1341,7 @@ Please verify recruited genomes are all strain of interest""")
             mtreef.close()
             os.system("mv %s %s"%(outputDir+os.sep+"parsnp.final.tree",outputDir+os.sep+"parsnp.tree"))
         except IOError:
-            logger.error("Cannot process fasttree output, skipping midpoint reroot..\n")
+            logger.error("Cannot process {} output, skipping midpoint reroot..\n".format("fasttree" if args.use_fasttree else "RaxML"))
 
 
     if len(use_gingr) > 0:
@@ -1259,7 +1349,7 @@ Please verify recruited genomes are all strain of interest""")
         if xtrafast or 1:
             #if newick available, add
             #new flag to update branch lengths
-            run_command("%s/bin/harvest --midpoint-reroot -u -q -i "%(PARSNP_DIR)+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
+            run_command("harvesttools --midpoint-reroot -u -q -i "+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
 
 
     if float(elapsed)/float(60.0) > 60:
