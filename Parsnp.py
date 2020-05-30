@@ -259,15 +259,23 @@ def run_command(command,ignorerc=0):
    p = subprocess.Popen(command, shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE,close_fds=True,executable="/bin/bash")
    fstdout,fstderr = p.communicate()
    rc = p.returncode
-   logger.debug(fstdout)
-   logger.debug(fstderr)
 
    if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
-      logger.error("""The following command failed:
+      logger.critical("""The following command failed:
       >>$ {}
       Please veryify input data and restart Parsnp.
-      If the problem persists please contact the Parsnp development team.""".format(command))
+      If the problem persists please contact the Parsnp development team.
+      
+      STDOUT:
+      {}
+      
+      STDERR:
+      {}""".format(command, fstdout, fstderr))
+    
       sys.exit(rc)
+   else:
+      logger.debug(fstdout)
+      logger.debug(fstderr)
 
 
 def is_valid_file_path(parser, arg):
@@ -543,6 +551,7 @@ if __name__ == "__main__":
     use_mummer_mumi = args.use_mummer_mumi
     use_ani = args.use_ani
     use_mash = args.use_mash
+    use_fasttree = args.use_fasttree
     use_parsnp_mumi = not (use_mash or use_mummer_mumi or use_ani)
     mum = args.mum_length
     maxpartition = args.max_partition_size
@@ -1313,12 +1322,20 @@ Please verify recruited genomes are all strain of interest""")
         run_command("harvesttools -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
 
     logger.info("Reconstructing core genome phylogeny...")
-    if args.use_fasttree:
+    if not use_fasttree:
+        with open(os.path.join(outputDir, "parsnp.snps.mblocks")) as mblocks:
+            for line in mblocks:
+                if line[0] != ">" and len(line.rstrip()) < 6:
+                    logger.warning("Not enough SNPs to use RaxML. Attempting to use FastTree instead...")
+                    use_fasttree = True
+                    break
+
+    if use_fasttree:
         command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
         run_command(command)
     else:
         with tempfile.TemporaryDirectory() as raxml_output_dir:
-            command = "raxmlHPC -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
+            command = "raxmlHPC-PTHREADS-AVX2 -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
             run_command(command)
             os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
 
