@@ -1388,29 +1388,21 @@ Please verify recruited genomes are all strain of interest""")
     filepres = 0
     logger.info("Parsnp finished! All output available in %s"%(outputDir))
     logger.debug("Validating output directory contents")
-    print("\t1)parsnp.tree:\t\tnewick format tree", end =' ')
     if os.path.exists("%sparsnp.tree"%(outputDir+os.sep)) and os.path.getsize("%sparsnp.tree"%(outputDir+os.sep)) > 0:
-        print("\t\t\t["+OK_GREEN+"OK"+"]")
         filepres+=1
     else:
-        print("\t|->"+ERROR_RED+"MISSING")
-    print(BOLDME+"\t2)parsnp.ggr:\t\tharvest input file for gingr (GUI)", end =' ')
+        logger.error("parsnp.tree:\t\tnewick format tree is missing!")
     if os.path.exists("%sparsnp.ggr"%(outputDir+os.sep)) and os.path.getsize("%sparsnp.ggr"%(outputDir+os.sep)) > 0:
-        print("\t["+OK_GREEN+"OK"+"]")
         filepres+=1
     else:
-        print("\t|->"+ERROR_RED+"MISSING")
-    print(BOLDME+"\t3)parsnp.xmfa:\t\tXMFA formatted multi-alignment", end = ' ')
+        logger.error("parsnp.ggr:\t\tharvest input file for gingr (GUI) is missing!")
     if os.path.exists("%sparsnp.xmfa"%(outputDir+os.sep)) and os.path.getsize("%sparsnp.xmfa"%(outputDir+os.sep)) > 0:
-        print("\t\t["+OK_GREEN+"OK"+"]")
         filepres+=1
     else:
-        print("\t|->"+ERROR_RED+"MISSING")
-    if filepres == 3:
-        pass
+        logger.error("parsnp.xmfa:\t\tXMFA formatted multi-alignment is missing")
+    if filepres != 3:
+        logger.critical("Output files missing, something went wrong. Check logs and relaunch or contact developers for assistance")
 
-    else:
-        logger.error("Output files missing, something went wrong. Check logs and relaunch or contact developers for assistance"+"]")
     if os.path.exists("%sblocks"%(outputDir+os.sep)):
         os.rmdir("%sblocks"%(outputDir+os.sep))
     if os.path.exists("allmums.out"):
@@ -1443,6 +1435,8 @@ Please verify recruited genomes are all strain of interest""")
 
     if os.path.exists("%s/parsnp.snps.mblocks"%(outputDir)):
         os.remove("%s/parsnp.snps.mblocks"%(outputDir))
+    if os.path.exists("%s/parsnp.snps.mblocks.reduced"%(outputDir)):
+        os.remove("%s/parsnp.snps.mblocks.reduced"%(outputDir))
 
     if not VERBOSE and os.path.exists("%s/all.mumi"%(outputDir)):
         os.remove("%s/all.mumi"%(outputDir))
