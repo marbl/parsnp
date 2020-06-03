@@ -133,16 +133,6 @@ if OSTYPE == "Darwin":
 else:
     binary_type = "linux"
 
-
-# Should save parsnp alias for the main entry point 
-# if not os.path.lexists("%s/bin/parsnp"%(PARSNP_DIR)):
-    # os.system("ln -s %s/bin/parsnp %s/bin/parsnp"%(PARSNP_DIR, PARSNP_DIR))
-if not os.path.lexists("%s/bin/harvesttools"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/harvest_%s %s/bin/harvesttools"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.lexists("%s/bin/fasttree"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/fasttree_%s %s/bin/fasttree"%(PARSNP_DIR,binary_type,PARSNP_DIR))
-if not os.path.lexists("%s/bin/Profile"%(PARSNP_DIR)):
-    os.system("ln -s %s/bin/Profile_%s %s/bin/Profile"%(PARSNP_DIR,binary_type,PARSNP_DIR))
 ####################################################################################################
 
 
