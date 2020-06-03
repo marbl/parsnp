@@ -3,7 +3,6 @@ Parsnp is a command-line-tool for efficient microbial core genome alignment and 
 - [Harvest project page](http://harvest.readthedocs.org)
   -  url: http://harvest.readthedocs.org
 
-Parsnp is primarily distributed as a binary for Linux or OS X (see Parsnp link above ). However, the source and build scripts are provided for incompatible platforms or for development purposes.
 
 
 # Installation
