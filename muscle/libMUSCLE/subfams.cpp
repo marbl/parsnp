@@ -3,7 +3,7 @@
 
 namespace muscle {
 
-const float INFINITY = float(1e29);
+const float MUSCLE_INFINITY = float(1e29);
 const unsigned NILL = uInsane;
 
 static TLS<float *> ShortestPathEstimate;
@@ -45,7 +45,7 @@ static void InitializeSingleSource(DistFunc &DF, unsigned uIndex)
 
 	for (unsigned i = 0; i < uNodeCount; ++i)
 		{
-		ShortestPathEstimate.get()[i] = INFINITY;
+		ShortestPathEstimate.get()[i] = MUSCLE_INFINITY;
 		Predecessor.get()[i] = NILL;
 		}
 	ShortestPathEstimate.get()[uIndex] = 0;
