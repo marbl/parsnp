@@ -7,11 +7,6 @@ Parsnp is a command-line-tool for efficient microbial core genome alignment and 
 
 # Installation
 
-## From Conda 
-```
-conda install parsnp --channel bioconda
-```
-will install Parsnp and all dependencies.
 
 ## From source
 
