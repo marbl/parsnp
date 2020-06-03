@@ -1,6 +1,6 @@
 cd muscle
 ./autogen.sh
-./configure --prefix=`pwd` CXXFLAGS=’-fopenmp’
+./configure --prefix=$PWD CXXFLAGS='-fopenmp'
 make install
 cd ..
 ./autogen.sh
