@@ -17,7 +17,7 @@ First, you must build the Muscle library
 ```
 cd muscle
 ./autogen.sh
-./configure --prefix=$PWD CXXFLAGS=’-fopenmp’
+./configure --prefix=$PWD CXXFLAGS='-fopenmp'
 make install
 ```
 
