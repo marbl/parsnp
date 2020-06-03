@@ -25,7 +25,7 @@ cd muscle
 ./autogen.sh
 ./configure --prefix=$PWD CXXFLAGS=’-fopenmp’
 make install
-``
+```
 
 Now we can build Parsnp
 ```
