@@ -1323,7 +1323,10 @@ Please verify recruited genomes are all strain of interest""")
 
     logger.info("Reconstructing core genome phylogeny...")
     if not use_fasttree:
-        with open(os.path.join(outputDir, "parsnp.snps.mblocks")) as mblocks:
+        mblocks_file = os.path.join(outputDir, "parsnp.snps.mblocks")
+        if not os.path.isfile(mblocks_file):
+            mblocks_file = os.path.join(outputDir, "parsnp.snps.mblocks.reduced")
+        with open(mblocks_file) as mblocks:
             for line in mblocks:
                 if line[0] != ">" and len(line.rstrip()) < 6:
                     logger.warning("Not enough SNPs to use RaxML. Attempting to use FastTree instead...")
