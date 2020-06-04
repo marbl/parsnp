@@ -1961,7 +1961,6 @@ void Aligner::setMumi(TRegion r1, vector<TMum>& mums, bool anchors = true, bool 
                     tempMSP[j] = 0;
                     amums[j] = 0;
                 }
-                int tid = omp_get_thread_num();
                 
                 for (int ix = 0; ix < int(rs[0].len_region); ix++)
                 {
