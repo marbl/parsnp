@@ -905,10 +905,10 @@ SETTINGS:
         logger.info("Recruiting genomes...")
         if use_parsnp_mumi:
             if not inifile_exists:
-                command = "%s/bin/parsnp %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
+                command = "%s/bin/parsnp_core %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
             else:
                 # TODO why are we editing the suffix of a provided file?
-                command = "%s/bin/parsnp %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
+                command = "%s/bin/parsnp_core %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
             run_command(command)
             try:
                 mumif = open(os.path.join(outputDir, "all.mumi"),'r')
@@ -1109,14 +1109,14 @@ SETTINGS:
                 if command == "" and xtrafast and 0:
                     command = "%s/parsnpA_fast %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
                 elif command == "":
-                    command = "%s/bin/parsnp %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
+                    command = "%s/bin/parsnp_core %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
                 else:
-                    command = "%s/bin/parsnp %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
+                    command = "%s/bin/parsnp_core %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
             else:
                 if not os.path.exists(inifile):
                     logger.error("ini file %s does not exist!\n"%(inifile))
                     sys.exit(1)
-                command = "%s/bin/parsnp %s"%(PARSNP_DIR,inifile)
+                command = "%s/bin/parsnp_core %s"%(PARSNP_DIR,inifile)
             run_command(command)
 
             if not os.path.exists(os.path.join(outputDir, "parsnpAligner.xmfa")):
