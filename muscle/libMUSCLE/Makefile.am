@@ -1,5 +1,5 @@
 OPTIMIZATION = -O2 -funroll-loops -fomit-frame-pointer -ftree-vectorize 
-AM_CXXFLAGS = $(OPTIMIZATION) -DNDEBUG=1 @OPENMP_CXXFLAGS@ -fopenmp
+AM_CXXFLAGS = $(OPTIMIZATION) -DNDEBUG=1 
 AM_LDFLAGS = $(OPTIMIZATION)
 
 LIBMUSCLE_H = \
