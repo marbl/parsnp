@@ -25,8 +25,8 @@ Now we can build Parsnp
 ```
 cd ..
 ./autogen.sh
-./configure
-make LDADD=-lMUSCLE-3.7
+./configure CXXFLAGS='-fopenmp'
+make LDADD=-lMUSCLE-3.7 
 make install
 ```
 
@@ -34,7 +34,7 @@ If you wish to be able to move your Parsnp installation around after building, b
 ```
 ./autogen.sh
 export ORIGIN=\$ORIGIN
-./configure LDFLAGS='-Wl,-rpath,$$ORIGIN/../muscle/lib'
+./configure CXXFLAGS='-fopenmp' LDFLAGS='-Wl,-rpath,$$ORIGIN/../muscle/lib'
 make LDADD=-lMUSCLE-3.7 
 make install
 ```
@@ -44,7 +44,10 @@ Note that the `parsnp` executable in `bin/` is not the same as the one in the ro
 # Running Parsnp
 Parsnp can be run multiple ways, but the most common is with a set of genomes and a reference. 
 ```
-parsnp -r <reference_genome> -d <genomes 
+parsnp -g <reference_genbank> -d <genomes 
+```
+```
+parsnp -r <reference_fasta> -d <genomes 
 ```
 For example, 
 ```
