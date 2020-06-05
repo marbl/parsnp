@@ -1328,7 +1328,7 @@ Please verify recruited genomes are all strain of interest""")
         run_command(command)
     else:
         with tempfile.TemporaryDirectory() as raxml_output_dir:
-            command = "raxmlHPC-PTHREADS-AVX2 -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
+            command = "raxmlHPC-PTHREADS -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
             run_command(command)
             os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
 
