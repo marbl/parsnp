@@ -318,7 +318,7 @@ def parse_args():
     input_output_args.add_argument(
         "-g",
         "--genbank",
-        nargs = '*',
+        nargs = '+',
         help = "A list of Genbank file(s) (gbk)")
     input_output_args.add_argument(
         "-o",
@@ -393,6 +393,13 @@ def parse_args():
         default = "1.1*(Log(S))",
         help = "Min (a)NCHOR length (default = 1.1*(Log(S)))")
     MUM_search_args.add_argument(
+        "-m",
+        "--mum-length",
+        "--mumlength",
+        type = str,
+        default = "1.1*(Log(S))",
+        help = "Mum length")
+    MUM_search_args.add_argument(
         "-C",
         "--max-cluster-d",
         "--clusterD",
@@ -454,6 +461,10 @@ def parse_args():
 
     misc_args = parser.add_argument_group("Misc")
     misc_args.add_argument(
+        "--use-fasttree",
+        action = "store_true",
+        help = "Use fasttree instead of RaxML")
+    misc_args.add_argument(
         "-p",
         "--threads",
         type = int,
@@ -471,45 +482,34 @@ def parse_args():
         action = "store_true",
         help = "Verbose output")
     misc_args.add_argument(
+        "-x",
+        "--xtrafast",
+        action = "store_true")
+    misc_args.add_argument(
+        "-i",
+        "--inifile",
+        "--ini-file",
+        type = str)
+    misc_args.add_argument(
+        "-e",
+        "--extend",
+        action = "store_true")
+    misc_args.add_argument(
         "-V",
         "--version",
         action = "version",
         version = "%(prog)s " + __version__)
 
     todo_args = parser.add_argument_group("Miscellaneous")
-    todo_args.add_argument(
-        "-e",
-        "--extend",
-        action = "store_true")
-    todo_args.add_argument(
-        "-l",
-        "--layout",
-        action = "store_true")
-    todo_args.add_argument(
-        "-x",
-        "--xtrafast",
-        action = "store_true")
-    todo_args.add_argument(
-        "-s",
-        "--split",
-        action = "store_true",
-        help = "Split genomes by n's")
-    todo_args.add_argument(
-        "-i",
-        "--inifile",
-        "--ini-file",
-        type = str)
-    todo_args.add_argument(
-        "--use-fasttree",
-        action = "store_true",
-        help = "Use fasttree instead of RaxML")
-    todo_args.add_argument(
-        "-m",
-        "--mum-length",
-        "--mumlength",
-        type = str,
-        default = "1.1*(Log(S))",
-        help = "TODO!!!")
+    # todo_args.add_argument(
+        # "-l",
+        # "--layout",
+        # action = "store_true")
+    # todo_args.add_argument(
+        # "-s",
+        # "--split",
+        # action = "store_true",
+        # help = "Split genomes by n's")
     return parser.parse_args()
 ####################################################################################################
 #print("-g = <bool>: auto-launch (g)ingr? (default = NO)"
@@ -554,9 +554,9 @@ if __name__ == "__main__":
     unaligned = "0" if not args.unaligned else "1"
     mincluster = args.min_cluster_size
     diagdiff = args.max_diagonal_difference
-    splitseq = args.split
+    # splitseq = args.split
     extend = args.extend
-    layout = args.layout
+    # layout = args.layout
     xtrafast = args.xtrafast
     inifile = args.inifile
     inifile_exists = args.inifile is not None
@@ -611,7 +611,12 @@ if __name__ == "__main__":
                     input_files_processed.append(f)
         elif os.path.isfile(input_f):
             input_files_processed.append(input_f)
+        else:
+            logger.error("{} is not a valid file".format(input_f))
     input_files = input_files_processed
+    if len(input_files) < 2:
+        logger.critical("Less than 2 input sequences provided...")
+        sys.exit(1)
 
     # Parse reference if necessary
     if ref and ref != "!":
@@ -646,7 +651,12 @@ if __name__ == "__main__":
                         genbank_files_processed.append(f)
             elif os.path.isfile(genbank_f):
                 genbank_files_processed.append(genbank_f)
+            else:
+                logger.error("{} is not a valid file".format(genbank_f))
         genbank_files = genbank_files_processed
+        if len(genbank_files) == 0:
+            logger.critical("No valid genbank files provided...")
+            sys.exit(1)
         ctcmd = "cat "
 
         first = True
