@@ -27,6 +27,13 @@ muscle/lib/
 muscle/libMUSCLE/.deps/
 muscle/libMUSCLE/.libs/
 muscle/libMUSCLE/muscle
+muscle/libMUSCLE-3.7.pc
+muscle/m4/libtool.m4
+muscle/m4/ltoptions.m4
+muscle/m4/ltsugar.m4
+muscle/m4/ltversion.m4
+muscle/m4/lt~obsolete.m4
+
 nucmer
 parsnp
 phiprofile
