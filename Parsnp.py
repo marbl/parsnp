@@ -360,10 +360,10 @@ def parse_args():
         help = "Calculate MUMi and exit? overrides all other choices!")
 
     MUMi_rec_prog = MUMi_args.add_mutually_exclusive_group()
-    MUMi_rec_prog.add_argument(
-        "--use-mummer-mumi",
-        action = "store_true",
-        help = "Use mummer for MUMi distance genome recruitment")
+    # MUMi_rec_prog.add_argument(
+        # "--use-mummer-mumi",
+        # action = "store_true",
+        # help = "Use mummer for MUMi distance genome recruitment")
     MUMi_rec_prog.add_argument(
         "--use-ani",
         action = "store_true",
@@ -538,7 +538,8 @@ if __name__ == "__main__":
     query = args.query
     anchor = args.min_anchor_length
     #TODO I'm guessing mummer_mumi was intended to be an option?
-    use_mummer_mumi = args.use_mummer_mumi
+    # use_mummer_mumi = args.use_mummer_mumi
+    use_mummer_mumi = False
     use_ani = args.use_ani
     use_mash = args.use_mash
     use_fasttree = args.use_fasttree
