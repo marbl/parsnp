@@ -1326,6 +1326,11 @@ Please verify recruited genomes are all strain of interest""")
 
     logger.info("Reconstructing core genome phylogeny...")
     if not use_fasttree:
+        with tempfile.TemporaryDirectory() as raxml_output_dir:
+            command = "raxmlHPC-PTHREADS -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
+            run_command(command)
+            os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
+
         mblocks_file = os.path.join(outputDir, "parsnp.snps.mblocks")
         if not os.path.isfile(mblocks_file):
             mblocks_file = os.path.join(outputDir, "parsnp.snps.mblocks.reduced")
@@ -1339,12 +1344,6 @@ Please verify recruited genomes are all strain of interest""")
     if use_fasttree:
         command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
         run_command(command)
-    else:
-        with tempfile.TemporaryDirectory() as raxml_output_dir:
-            command = "raxmlHPC-PTHREADS -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
-            run_command(command)
-            os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
-
 
     #7)reroot to midpoint
     if os.path.exists("outtree"):
