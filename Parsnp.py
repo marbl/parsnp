@@ -802,8 +802,10 @@ SETTINGS:
             logger.error("{} has improperly formatted header. Skip!".format(input_file))
             continue
         elif '-' in seq:
-            logger.warning("Genome sequence %s seems to aligned! Skip!"%((input_file)))
-            # continue
+            seq = seq.split('\n')
+            if any('-' in l and ('>' not in l) for l in seq):
+                logger.warning("Genome sequence %s seems to be aligned! Skip!"%((input_file)))
+                continue
         elif seqlen <= 20:
             logger.error("File %s is less than or equal to 20bp in length. Skip!"%(input_file))
             continue
