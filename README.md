@@ -53,9 +53,6 @@ For example,
 ```
 ./parsnp -g examples/mers_virus/ref/England1.gbk -d examples/mers_virus/genomes/*.fna -c
 ```
-
-Note that Parsnp will warn about and skip aligned genomes.
-
 More examples can be found in the [readthedocs tutorial](https://harvest.readthedocs.io/en/latest/content/parsnp/tutorial.html)
 
 ## Misc
