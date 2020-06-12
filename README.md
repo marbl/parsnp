@@ -41,6 +41,9 @@ make install
 
 Note that the `parsnp` executable in `bin/` is not the same as the one in the root level. The former is an alias for Parsnp.py while the latter is the core algorithm of Parsnp that we build above.
 
+## OSX Users (Catalina)
+Recent OSX have a Gatekeeper, that's designed to ensure that only softwre from known developers runs on  tour Mac. Please refer to this link to enable the binaries shipped with Parsnp to run: https://support.apple.com/en-us/HT202491
+
 # Running Parsnp
 Parsnp can be run multiple ways, but the most common is with a set of genomes and a reference. 
 ```
@@ -54,6 +57,7 @@ For example,
 ./parsnp -g examples/mers_virus/ref/England1.gbk -d examples/mers_virus/genomes/*.fna -c
 ```
 More examples can be found in the [readthedocs tutorial](https://harvest.readthedocs.io/en/latest/content/parsnp/tutorial.html)
+
 
 ## Misc
 
