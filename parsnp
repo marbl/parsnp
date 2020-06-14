@@ -1349,9 +1349,16 @@ Please verify recruited genomes are all strain of interest""")
                     break
 
     if use_fasttree:
-        os.environ["OMP_NUM_THREADS"] = str(threads)
-        command = "FastTreeMP -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
-        run_command(command)
+        if shutil.which("FastTreeMP") is not None:
+            os.environ["OMP_NUM_THREADS"] = str(threads)
+            command = "FastTreeMP -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
+            run_command(command)
+        else:
+            logger.info("FastTreeMP failed. Trying fasttree...")
+            command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
+            run_command(command)
+            
+
 
     #7)reroot to midpoint
     if os.path.exists("outtree"):
