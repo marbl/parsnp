@@ -77,6 +77,18 @@ class ColoredFormatter(logging.Formatter):
             levelname_color = COLOR_SEQ % (30 + COLORS[levelname]) + levelname + RESET_SEQ
             record.levelname = levelname_color
         return logging.Formatter.format(self, record)
+
+# Instantiate logger
+logger = logging.getLogger("Parsnp")
+logger.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+# create formatter and add it to the handlers
+formatter = ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s',
+                             datefmt="%H:%M:%S")
+ch.setFormatter(formatter)
+# add the handlers to the logger
+logger.addHandler(ch)
 ####################################################################################################
 
 
@@ -118,6 +130,9 @@ if frozenbinary:
       if needToAdd:
          os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = libPath + os.pathsep + oldLDPath
          os.environ["LD_LIBRARY_PATH"] = libPath + os.pathsep + oldLDPath
+
+# Add binaries to path
+# os.environ["PATH"] += os.pathsep + os.path.join(PARSNP_DIR, "bin")
 
 OSTYPE="linux"
 p = subprocess.Popen("echo `uname`", shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -578,17 +593,9 @@ if __name__ == "__main__":
     multifasta = False
     ref_seqs = {}
 
-    # Instantiate logger
-    logger = logging.getLogger("Parsnp")
     logger.setLevel(logging_level)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging_level)
-    # create formatter and add it to the handlers
-    formatter = ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s',
-                                 datefmt="%H:%M:%S")
-    ch.setFormatter(formatter)
-    # add the handlers to the logger
-    logger.addHandler(ch)
+    for handler in logger.handlers:
+        handler.setLevel(logging_level)
 
     # Create output dir
     if outputDir == "." or outputDir == "./" or outputDir == "/":
@@ -1342,7 +1349,8 @@ Please verify recruited genomes are all strain of interest""")
                     break
 
     if use_fasttree:
-        command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
+        os.environ["OMP_NUM_THREADS"] = str(threads)
+        command = "FastTreeMP -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
         run_command(command)
 
     #7)reroot to midpoint
