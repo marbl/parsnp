@@ -597,6 +597,23 @@ if __name__ == "__main__":
     for handler in logger.handlers:
         handler.setLevel(logging_level)
 
+    # Check for dependencies
+    missing = False
+    for exe in ["Profile", "raxmlHPC-PTHREADS", "harvesttools"]:
+        if shutil.which(exe) is None:
+            missing = True
+            logger.critical("{} not in system path!".format(exe))
+    if use_fasttree:
+        has_fasttree = False
+        for exe in ["fasttree", "FastTree", "FastTreeMP"]:
+            if shutil.which(exe) is not None:
+                has_fasttree = True
+        if not has_fasttree:
+            logger.critical("No fasttree executable found in system path!".format(exe))
+        missing = missing or (not has_fasttree)
+    if missing:
+        sys.exit(1)
+        
     # Create output dir
     if outputDir == "." or outputDir == "./" or outputDir == "/":
         logger.critical("Specified output dir is current working dir or root dir! will clobber any parsnp.* results")
