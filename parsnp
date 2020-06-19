@@ -1274,7 +1274,7 @@ Please verify recruited genomes are all strain of interest""")
 
         #run parallelPhiPack
         pool = Pool(processes=int(threads))
-        result = pool.map_async(parallelPhiWrapper,tasks).get(sys.maxsize)
+        result = pool.map_async(parallelPhiWrapper,tasks).get()
 
         for i in result:
             if (i["status"] == 1):
