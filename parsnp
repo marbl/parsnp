@@ -547,6 +547,7 @@ if __name__ == "__main__":
     currdir = os.getcwd()
     logging_level = logging.DEBUG if args.verbose else logging.INFO
     ref = args.reference
+    randomly_selected_ref = False
     if ref == '!':
         randomly_selected_ref = True
     input_files = args.sequences
@@ -1002,6 +1003,8 @@ SETTINGS:
             try:
                 tmp_dir = outputDir
                 all_genomes_fname = os.path.join(tmp_dir, "genomes.lst")
+                with open(all_genomes_fname, 'w') as all_genomes_f:
+                    all_genomes_f.writelines((line + '\n' for line in fnafiles))
                 if use_mash:
                     if randomly_selected_ref:
                         logger.warning("You are using a randomly selected genome to recruit genomes from your input...")
@@ -1025,7 +1028,7 @@ SETTINGS:
                     else:
                         subprocess.check_call([
                                 "fastANI", 
-                                "--q", ref, 
+                                "-q", ref, 
                                 "--rl", all_genomes_fname, 
                                 "-t", str(threads),
                                 "-o", os.path.join(outputDir, "fastANI.tsv")],
