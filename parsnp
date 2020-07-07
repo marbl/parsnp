@@ -469,13 +469,6 @@ def parse_args():
             # action = "store_true",
             # help = "Enable filtering of SNPs located in PhiPack identified regions of recombination")
 
-    probe_design_args = parser.add_argument_group("Probe design")
-    probe_design_args.add_argument(
-        "-b",
-        "--probe",
-        action = "store_true",
-        help = "Remove genome length constraints to search for MUMs in concatenated sequences much larger than reference")
-
     misc_args = parser.add_argument_group("Misc")
     misc_args.add_argument(
         "--use-fasttree",
@@ -583,7 +576,6 @@ if __name__ == "__main__":
     max_mash_dist = args.max_mash_dist
     min_ani_cutoff = args.min_ani
     outputDir = args.output_dir
-    probe = args.probe
     genbank_file = ""
     genbank_files = []
     genbank_files_cat = ""
@@ -840,12 +832,21 @@ SETTINGS:
 
         # EDITED THIS TO CHANGE GENOME THRESHOLD
         # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
-        if not args.probe and sizediff <= 0.6:
-                logger.warning("File %s is too long compared to reference!"%(input_file))
-                continue
+        if curated:
+            log_f = logger.warning
+            msg = ""
         else:
-            if sizediff >= 1.4:
-                logger.warning("File %s is too short compared to reference genome!"%(input_file))
+            log_f = logger.error
+            msg = "Skipping..."
+        if sizediff <= 0.6:
+            log_f("File {} is {:.2f}x longer than reference! {}".format(
+                input_file, 1/sizediff, msg))
+            if not curated:
+                continue
+        elif sizediff >= 1.4:
+            log_f("File {} is {:.2f}x shorter than reference genome! {}".format(
+                input_file, sizediff, msg))
+            if not curated:
                 continue
         fnafiles.append(input_file)
         fnaf_sizes[input_file] = seqlen
@@ -1198,7 +1199,7 @@ SETTINGS:
         sys.exit(1)
 
     #update thresholds
-    if coverage < 0.1 and not args.probe:
+    if coverage < 0.1 and not curated:
         if coverage <= 0.01:
             logger.critical("""Aligned regions cover less than 1% of reference genome, something is not right
 Adjust params and rerun. If issue persists please submit a GitHub issue""")
