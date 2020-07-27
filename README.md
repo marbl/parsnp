@@ -16,7 +16,6 @@ To build Parsnp from source, users must have automake 1.15, autoconf, and libtoo
 First, you must build the Muscle library
 ```
 cd muscle
-./autogen.sh
 ./configure --prefix=$PWD CXXFLAGS='-fopenmp'
 make install
 ```
@@ -24,7 +23,6 @@ make install
 Now we can build Parsnp
 ```
 cd ..
-./autogen.sh
 ./configure CXXFLAGS='-fopenmp'
 make LDADD=-lMUSCLE-3.7 
 make install
