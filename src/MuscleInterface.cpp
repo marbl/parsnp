@@ -1,19 +1,19 @@
 //Fork of libMUSCLE code from http://sourceforge.net/p/mauve/code/HEAD/tree/muscle/
 
 #include "MuscleInterface.h"
-#include "../muscle/libMUSCLE/muscle.h"
-#include "../muscle/libMUSCLE/params.h"
-#include "../muscle/libMUSCLE/seq.h"
-#include "../muscle/libMUSCLE/seqvect.h"
-#include "../muscle/libMUSCLE/msa.h"
-#include "../muscle/libMUSCLE/tree.h"
-#include "../muscle/libMUSCLE/clust.h"
-#include "../muscle/libMUSCLE/profile.h"
-#include "../muscle/libMUSCLE/distfunc.h"
-#include "../muscle/libMUSCLE/clustsetdf.h"
-#include "../muscle/libMUSCLE/textfile.h"
-#include "../muscle/libMUSCLE/types.h"
-#include "../muscle/libMUSCLE/threadstorage.h"
+#include "libMUSCLE/muscle.h"
+#include "libMUSCLE/params.h"
+#include "libMUSCLE/seq.h"
+#include "libMUSCLE/seqvect.h"
+#include "libMUSCLE/msa.h"
+#include "libMUSCLE/tree.h"
+#include "libMUSCLE/clust.h"
+#include "libMUSCLE/profile.h"
+#include "libMUSCLE/distfunc.h"
+#include "libMUSCLE/clustsetdf.h"
+#include "libMUSCLE/textfile.h"
+#include "libMUSCLE/types.h"
+#include "libMUSCLE/threadstorage.h"
 
 
 namespace muscle {
