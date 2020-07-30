@@ -23,16 +23,15 @@ make install
 Now we can build Parsnp
 ```
 cd ..
-./configure CXXFLAGS='-fopenmp'
+./configure
 make LDADD=-lMUSCLE-3.7 
 make install
 ```
 
 If you wish to be able to move your Parsnp installation around after building, build the parsp binary as follows (after building the Muscle library)
 ```
-./autogen.sh
 export ORIGIN=\$ORIGIN
-./configure CXXFLAGS='-fopenmp' LDFLAGS='-Wl,-rpath,$$ORIGIN/../muscle/lib'
+./configure LDFLAGS='-Wl,-rpath,$$ORIGIN/../muscle/lib'
 make LDADD=-lMUSCLE-3.7 
 make install
 ```
