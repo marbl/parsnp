@@ -57,7 +57,7 @@ void CheckMemUse()
 
 double GetRAMSizeMB()
 	{
-	return 500.0;
+	return 5000.0;
 	}
 
 #endif

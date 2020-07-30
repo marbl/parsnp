@@ -114,7 +114,7 @@ void CheckMemUse()
 
 double GetRAMSizeMB()
 	{
-	const double DEFAULT_RAM = 500;
+	const double DEFAULT_RAM = 5000;
 	static double RAMMB = 0;
 	if (RAMMB != 0)
 		return RAMMB;
