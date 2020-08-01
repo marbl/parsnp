@@ -8,6 +8,7 @@ import tempfile
 import shutil
 import re
 import logging
+import multiprocessing
 import argparse
 import signal
 import inspect
@@ -784,6 +785,8 @@ SETTINGS:
 
 
 
+    if multiprocessing.cpu_count() < threads:
+        logger.warning("You have asked to use more threads than you have available on your machine. This may lead to serious performance degredation with RAxML.")
     logger.info("<<Parsnp started>>")
 
     #1)read fasta files (contigs/scaffolds/finished/DBs/dirs)
