@@ -1317,6 +1317,7 @@ Please verify recruited genomes are all strain of interest""")
                             bedfile_dict[srpos] = "1\t%s\t%s\tREC\t%.3f\t+\n"%(srpos,pos+50+block_spos,eval)
                         else:
                             chrnum = 1
+                            chr_spos = list(ref_seqs.keys())
                             for cs in ref_seqs:
                                 if block_spos < chr_spos:
                                     chrnum = ref_seqs[cs]
