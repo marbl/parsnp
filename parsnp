@@ -476,6 +476,10 @@ def parse_args():
         action = "store_true",
         help = "Use fasttree instead of RaxML")
     misc_args.add_argument(
+        "--vcf",
+        action = "store_true",
+        help = "Generate VCF file.")
+    misc_args.add_argument(
         "-p",
         "--threads",
         type = int,
@@ -583,6 +587,7 @@ if __name__ == "__main__":
     genbank_ref = ""
     reflen = 0
     use_gingr = ""
+    generate_vcf = args.vcf
     filtreps = False
 
     repfile = ""
@@ -759,9 +764,10 @@ if __name__ == "__main__":
         logger.critical("No seqs provided, yet required. exit!")
         sys.exit(0)  # TODO Should this exit value be 0?
     elif not ref and query:
-        logger.warning("No reference genome specified, going to autopick from %s as closest to %s\n"%(seqdir, query))
+        logger.warning("No reference genome specified, going to autopick from input as closest to %s\n"%(query))
         autopick_ref = True
         ref = query
+    print("Ref", ref)
 
     logger.info("""
 {}
@@ -1357,6 +1363,8 @@ Please verify recruited genomes are all strain of interest""")
             run_command("harvesttools -q -b %s,REP,\"Intragenomic repeats > 100bp\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(repfile,outputDir,outputDir))
 
         run_command("harvesttools -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
+        if generate_vcf:
+            run_command("harvesttools -q -i %s/parsnp.ggr -V "%(outputDir)+outputDir+os.sep+"parsnp.vcf")
 
     logger.info("Reconstructing core genome phylogeny...")
     with open(os.path.join(outputDir, "parsnp.snps.mblocks")) as mblocks:
