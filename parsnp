@@ -14,7 +14,7 @@ import signal
 import inspect
 from multiprocessing import *
 
-__version__ = "1.5.4"
+__version__ = "1.5.6"
 reroot_tree = True #use --midpoint-reroot
 
 try:
