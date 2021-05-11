@@ -1485,6 +1485,8 @@ Please verify recruited genomes are all strain of interest""")
     if not VERBOSE and os.path.exists("%s/all_mumi.ini"%(outputDir)):
         os.remove("%s/all_mumi.ini"%(outputDir))
 
+    if not VERBOSE and os.path.exists("%s/tmp"%(outputDir)):
+        shutil.rmtree("%s/tmp"%(outputDir))
 
     if os.path.exists("%s/parsnp.snps.mblocks"%(outputDir)):
         os.remove("%s/parsnp.snps.mblocks"%(outputDir))
