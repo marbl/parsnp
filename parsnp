@@ -472,6 +472,14 @@ def parse_args():
 
     misc_args = parser.add_argument_group("Misc")
     misc_args.add_argument(
+        "--skip-phylogeny",
+        action="store_true",
+        help="Do not generate phylogeny from core SNPs")
+    misc_args.add_argument(
+        "--validate-input",
+        action="store_true",
+        help="Use Biopython to validate input files")
+    misc_args.add_argument(
         "--use-fasttree",
         action = "store_true",
         help = "Use fasttree instead of RaxML")
@@ -642,6 +650,17 @@ if __name__ == "__main__":
     if len(input_files) < 2:
         logger.critical("Less than 2 input sequences provided...")
         sys.exit(1)
+    if args.validate_input:
+        from Bio import SeqIO
+        for f in input_files:
+            try:
+                records = SeqIO.parse(f, "fasta")
+            except:
+                logger.error("{} is an invalid sequence file!".format(f))
+            for record in records:
+                if any(c not in "GATCRYWSMKHBVDN" + "GATCRYWSMKHBVDN".lower() for c in record.seq):
+                    logger.error("Genome sequence {} has invalid characters {}! Skip!".format(f, set(str(record.seq)) - set("AGCTNagctn")))
+                    continue
 
     # Parse reference if necessary
     if ref and ref != "!":
@@ -832,7 +851,7 @@ SETTINGS:
         elif '-' in seq:
             seq = seq.split('\n')
             if any('-' in l and ('>' not in l) for l in seq):
-                logger.warning("Genome sequence %s seems to be aligned! Skip!"%((input_file)))
+                logger.error("Genome sequence %s seems to be aligned! Skip!"%((input_file)))
                 continue
         elif seqlen <= 20:
             logger.error("File %s is less than or equal to 20bp in length. Skip!"%(input_file))
@@ -1366,60 +1385,61 @@ Please verify recruited genomes are all strain of interest""")
         if generate_vcf:
             run_command("harvesttools -q -i %s/parsnp.ggr -V "%(outputDir)+outputDir+os.sep+"parsnp.vcf")
 
-    logger.info("Reconstructing core genome phylogeny...")
-    with open(os.path.join(outputDir, "parsnp.snps.mblocks")) as mblocks:
-        for line in mblocks:
-            if line[0] != ">" and len(line.rstrip()) < 6:
-                logger.warning("Not enough SNPs to use RaxML. Attempting to use FastTree instead...")
-                use_fasttree = True
-                break
-    if not use_fasttree:
-        with tempfile.TemporaryDirectory() as raxml_output_dir:
-            command = "raxmlHPC-PTHREADS -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
-            run_command(command)
-            os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
+    if not args.skip_phylogeny:
+        logger.info("Reconstructing core genome phylogeny...")
+        with open(os.path.join(outputDir, "parsnp.snps.mblocks")) as mblocks:
+            for line in mblocks:
+                if line[0] != ">" and len(line.rstrip()) < 6:
+                    logger.warning("Not enough SNPs to use RaxML. Attempting to use FastTree instead...")
+                    use_fasttree = True
+                    break
+        if not use_fasttree:
+            with tempfile.TemporaryDirectory() as raxml_output_dir:
+                command = "raxmlHPC-PTHREADS -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
+                run_command(command)
+                os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
 
-        mblocks_file = os.path.join(outputDir, "parsnp.snps.mblocks")
+            mblocks_file = os.path.join(outputDir, "parsnp.snps.mblocks")
 
-    if use_fasttree:
-        if shutil.which("FastTreeMP") is not None:
-            os.environ["OMP_NUM_THREADS"] = str(threads)
-            command = "FastTreeMP -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
-            run_command(command)
-        else:
-            logger.info("FastTreeMP failed. Trying fasttree...")
-            command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
-            run_command(command)
-            
-
-
-    #7)reroot to midpoint
-    if os.path.exists("outtree"):
-         os.remove("outtree")
-
-    if reroot_tree and len(finalfiles) > 1:
-        try:
-            mtree = open("%sparsnp.tree"%(outputDir+os.sep), 'r')
-            mtreedata = mtree.read()
-            mtreedata = mtreedata.replace("\n","")
-            tree = dendropy.Tree.get_from_string(mtreedata,"newick")
-            tree.reroot_at_midpoint(update_bipartitions=False)
-            mftreef = tree.as_string('newick').split(" ",1)[1]
-            #print mftreef
-            mtreef = open(outputDir+os.sep+"parsnp.final.tree",'w')
-            mtreef.write(mftreef)
-            mtreef.close()
-            os.system("mv %s %s"%(outputDir+os.sep+"parsnp.final.tree",outputDir+os.sep+"parsnp.tree"))
-        except IOError:
-            logger.error("Cannot process {} output, skipping midpoint reroot..\n".format("fasttree" if args.use_fasttree else "RaxML"))
+        if use_fasttree:
+            if shutil.which("FastTreeMP") is not None:
+                os.environ["OMP_NUM_THREADS"] = str(threads)
+                command = "FastTreeMP -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
+                run_command(command)
+            else:
+                logger.info("FastTreeMP failed. Trying fasttree...")
+                command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
+                run_command(command)
+                
 
 
-    if len(use_gingr) > 0:
-        logger.info("Creating Gingr input file..")
-        if xtrafast or 1:
-            #if newick available, add
-            #new flag to update branch lengths
-            run_command("harvesttools --midpoint-reroot -u -q -i "+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
+        #7)reroot to midpoint
+        if os.path.exists("outtree"):
+             os.remove("outtree")
+
+        if reroot_tree and len(finalfiles) > 1:
+            try:
+                mtree = open("%sparsnp.tree"%(outputDir+os.sep), 'r')
+                mtreedata = mtree.read()
+                mtreedata = mtreedata.replace("\n","")
+                tree = dendropy.Tree.get_from_string(mtreedata,"newick")
+                tree.reroot_at_midpoint(update_bipartitions=False)
+                mftreef = tree.as_string('newick').split(" ",1)[1]
+                #print mftreef
+                mtreef = open(outputDir+os.sep+"parsnp.final.tree",'w')
+                mtreef.write(mftreef)
+                mtreef.close()
+                os.system("mv %s %s"%(outputDir+os.sep+"parsnp.final.tree",outputDir+os.sep+"parsnp.tree"))
+            except IOError:
+                logger.error("Cannot process {} output, skipping midpoint reroot..\n".format("fasttree" if args.use_fasttree else "RaxML"))
+
+
+        if len(use_gingr) > 0:
+            logger.info("Creating Gingr input file..")
+            if xtrafast or 1:
+                #if newick available, add
+                #new flag to update branch lengths
+                run_command("harvesttools --midpoint-reroot -u -q -i "+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
 
 
     if float(elapsed)/float(60.0) > 60:
@@ -1441,7 +1461,7 @@ Please verify recruited genomes are all strain of interest""")
     filepres = 0
     logger.info("Parsnp finished! All output available in %s"%(outputDir))
     logger.debug("Validating output directory contents")
-    if os.path.exists("%sparsnp.tree"%(outputDir+os.sep)) and os.path.getsize("%sparsnp.tree"%(outputDir+os.sep)) > 0:
+    if args.skip_phylogeny or os.path.exists("%sparsnp.tree"%(outputDir+os.sep)) and os.path.getsize("%sparsnp.tree"%(outputDir+os.sep)) > 0:
         filepres+=1
     else:
         logger.error("parsnp.tree:\t\tnewick format tree is missing!")
@@ -1453,8 +1473,8 @@ Please verify recruited genomes are all strain of interest""")
         filepres+=1
     else:
         logger.error("parsnp.xmfa:\t\tXMFA formatted multi-alignment is missing")
-    if filepres != 3:
-        logger.critical("Output files missing, something went wrong. Check logs and relaunch or contact developers for assistance")
+    # if filepres != 3:
+        # logger.critical("Output files missing, something went wrong. Check logs and relaunch or contact developers for assistance")
 
     if os.path.exists("%sblocks"%(outputDir+os.sep)):
         os.rmdir("%sblocks"%(outputDir+os.sep))
