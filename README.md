@@ -51,10 +51,10 @@ Recent OSX have a Gatekeeper, that's designed to ensure that only softwre from k
 # Running Parsnp
 Parsnp can be run multiple ways, but the most common is with a set of genomes and a reference. 
 ```
-parsnp -g <reference_genbank> -d <genomes 
+parsnp -g <reference_genbank> -d <genomes> 
 ```
 ```
-parsnp -r <reference_fasta> -d <genomes 
+parsnp -r <reference_fasta> -d <genomes> 
 ```
 For example, 
 ```
