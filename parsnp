@@ -652,7 +652,7 @@ if __name__ == "__main__":
         sys.exit(1)
     if args.validate_input:
         from Bio import SeqIO
-        for f in input_files:
+        for f in input_files + ([ref] if ref and ref != "!" else []):
             try:
                 records = SeqIO.parse(f, "fasta")
             except:
