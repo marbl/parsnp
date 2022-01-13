@@ -22,7 +22,7 @@ intmath.cpp local.cpp makerootmsab.cpp makerootmsa.cpp mhack.cpp mpam200.cpp \
 msa2.cpp msa.cpp msadistkimura.cpp msf.cpp muscle.cpp muscleout.cpp nucmx.cpp nwdasimple2.cpp nwdasimple.cpp nwdasmall.cpp nwrec.cpp nwsmall.cpp objscore2.cpp objscore.cpp objscoreda.cpp onexception.cpp options.cpp outweights.cpp pam200mafft.cpp params.cpp phy2.cpp phy3.cpp phy4.cpp phy.cpp phyfromclust.cpp phyfromfile.cpp physeq.cpp phytofile.cpp posgap.cpp ppscore.cpp profdb.cpp profile.cpp profilefrommsa.cpp progalign.cpp progress.cpp progressivealign.cpp pwpath.cpp readmx.cpp realigndiffs.cpp realigndiffse.cpp refine.cpp refinehoriz.cpp refinesubfams.cpp refinetree.cpp refinetreee.cpp refinevert.cpp refinew.cpp savebest.cpp scoregaps.cpp scorehistory.cpp scorepp.cpp seq.cpp seqvect.cpp setblosumweights.cpp setgscweights.cpp setnewhandler.cpp spfast.cpp sptest.cpp stabilize.cpp subfam.cpp subfams.cpp sw.cpp termgaps.cpp textfile.cpp threewaywt.cpp traceback.cpp tracebackopt.cpp tracebacksw.cpp treefrommsa.cpp typetostr.cpp upgma2.cpp usage.cpp validateids.cpp vtml2.cpp writescorefile.cpp \
 blosum62.cpp globalsother.cpp maketree.cpp scoredist.cpp tomhydro.cpp
 
-library_includedir=$(includedir)/$(GENERIC_LIBRARY_NAME)-$(GENERIC_API_VERSION)/$(GENERIC_LIBRARY_NAME)
+library_includedir=$(includedir)/$(GENERIC_LIBRARY_NAME)
 library_include_HEADERS = $(LIBMUSCLE_H)
 
 INCLUDES = -I$(top_srcdir)

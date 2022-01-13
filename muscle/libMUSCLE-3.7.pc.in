@@ -7,5 +7,5 @@ Name: libMUSCLE
 Description: The MUSCLE multiple sequence alignment code turned into a library 
 Version: @VERSION@
 Libs: -L${libdir} -lMUSCLE-@GENERIC_API_VERSION@ @OPENMP_CXXFLAGS@
-Cflags: -I${includedir}/@GENERIC_LIBRARY_NAME@-@GENERIC_API_VERSION@ @OPENMP_CXXFLAGS@ 
+Cflags: -I${includedir}/ @OPENMP_CXXFLAGS@ 
 
