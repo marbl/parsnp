@@ -14,7 +14,7 @@ import signal
 import inspect
 from multiprocessing import *
 
-__version__ = "1.6.1"
+__version__ = "1.6.2"
 reroot_tree = True #use --midpoint-reroot
 
 try:
@@ -1508,8 +1508,8 @@ Please verify recruited genomes are all strain of interest""")
     if not VERBOSE and os.path.exists("%s/tmp"%(outputDir)):
         shutil.rmtree("%s/tmp"%(outputDir))
 
-    if os.path.exists("%s/parsnp.snps.mblocks"%(outputDir)):
-        os.remove("%s/parsnp.snps.mblocks"%(outputDir))
+    # if os.path.exists("%s/parsnp.snps.mblocks"%(outputDir)):
+        # os.remove("%s/parsnp.snps.mblocks"%(outputDir))
     if os.path.exists("%s/parsnp.snps.mblocks.reduced"%(outputDir)):
         os.remove("%s/parsnp.snps.mblocks.reduced"%(outputDir))
 
