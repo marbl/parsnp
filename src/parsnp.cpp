@@ -995,20 +995,39 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                         hdr1 =  lasthdr1;
                         seqstart = laststart;
                     }
-                    if ( !ct.mums.at(0).isforward.at(i) )
-                    {
-                        xmfafile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
-                        if(recomb_filter)
+                    if (i == 0) {
+                        if ( !ct.mums.at(0).isforward.at(i) )
                         {
-                            clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            xmfafile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            if(recomb_filter)
+                            {
+                                clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            }
                         }
-                    }
-                    else
-                    {
-                        xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
-                        if(recomb_filter)
+                        else
                         {
-                            clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            if(recomb_filter)
+                            {
+                                clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            }
+                        }    
+                    } else {
+                        if ( !ct.mums.at(0).isforward.at(i) )
+                        {
+                            xmfafile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 - ((hdr1 == "s1" || hdr1=="") ? 0 : this->d + 10 + 1) + ct.mums.at(0).length << endl;
+                            if(recomb_filter)
+                            {
+                                clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            }
+                        }
+                        else
+                        {
+                            xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 - ((hdr1 == "s1" || hdr1=="") ? 0 : this->d + 10 + 1)  << endl;
+                            if(recomb_filter)
+                            {
+                                clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            }
                         }
                     }
                     for( k = 0; k+width < s1s.size();)
