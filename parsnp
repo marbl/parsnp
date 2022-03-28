@@ -1,18 +1,23 @@
 #!/usr/bin/env python
 # See the LICENSE file included with this software for license information.
 
-import os, sys, string, getopt, random,subprocess, time, glob,operator, math, datetime,numpy #pysam
+import os, sys, string, getopt, random,subprocess, time,operator, math, datetime,numpy #pysam
 from collections import defaultdict
 import csv
-import tempfile
 import shutil
+from tempfile import TemporaryDirectory
 import re
 import logging
+from logger import logger
 import multiprocessing
 import argparse
 import signal
 import inspect
 from multiprocessing import *
+from Bio import SeqIO
+from glob import glob
+
+import extend as ext
 
 __version__ = "1.6.2"
 reroot_tree = True #use --midpoint-reroot
@@ -37,60 +42,6 @@ TOTSEQS=0
 PARSNP_DIR = sys.path[0]
 
 
-############################################# Logging ##############################################
-BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
-#These are the sequences need to get colored ouput
-CSI=""#"\x1B["
-BOLDME = ""#CSI+'\033[1m'
-STATUS_BLUE = ""#CSI+'\033[94m'
-OK_GREEN = ""#CSI+'\033[92m'#'32m'
-SKIP_GRAY = ""#CSI+'\033[37m'
-WARNING_YELLOW = ""#CSI+'\033[93m'
-ERROR_RED = ""#CSI+'\033[91m'
-ENDC = ""#CSI+'0m'
-RESET_SEQ = "\033[0m"
-COLOR_SEQ = "\033[1;%dm"
-BOLD_SEQ = "\033[1m"
-
-def formatter_message(message, use_color = True):
-    if use_color:
-        message = message.replace("$RESET", RESET_SEQ).replace("$BOLD", BOLD_SEQ)
-    else:
-        message = message.replace("$RESET", "").replace("$BOLD", "")
-    return message
-
-COLORS = {
-    'DEBUG': BLUE,
-    'INFO': WHITE,
-    'WARNING': YELLOW,
-    'ERROR': RED,
-    'CRITICAL': RED
-}
-
-class ColoredFormatter(logging.Formatter):
-    def __init__(self, msg, datefmt = None, use_color = True):
-        logging.Formatter.__init__(self, fmt=msg, datefmt=datefmt)
-        self.use_color = use_color
-
-    def format(self, record):
-        levelname = record.levelname
-        if self.use_color and levelname in COLORS:
-            levelname_color = COLOR_SEQ % (30 + COLORS[levelname]) + levelname + RESET_SEQ
-            record.levelname = levelname_color
-        return logging.Formatter.format(self, record)
-
-# Instantiate logger
-logger = logging.getLogger("Parsnp")
-logger.setLevel(logging.INFO)
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-# create formatter and add it to the handlers
-formatter = ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s',
-                             datefmt="%H:%M:%S")
-ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(ch)
-####################################################################################################
 
 
 ########################################### Environment ############################################
@@ -296,7 +247,7 @@ def is_valid_file_path(parser, arg):
 def is_valid_dir(parser, arg):
     if not os.path.exists(arg):
         parser.error( "The directory %s does not exist\n" % (arg))
-    if len(glob.glob("%s/*"%(arg))) == 0:
+    if len(glob("%s/*"%(arg))) == 0:
         parser.error("The director %s is empty"%(arg))
 
 
@@ -469,6 +420,26 @@ def parse_args():
             # "--filter-phipack-snps",
             # action = "store_true",
             # help = "Enable filtering of SNPs located in PhiPack identified regions of recombination")
+    extend_args = parser.add_argument_group("LCB Extension")
+    extend_args.add_argument(
+        "--extend-lcbs",
+        action="store_true",
+        help="Extend the boundaries of LCBs with an ungapped alignment")
+    extend_args.add_argument(
+        "--match-score",
+        type=float,
+        default=5,
+        help="Value of match score for extension")
+    extend_args.add_argument(
+        "--mismatch-penalty",
+        type=float,
+        default=-2,
+        help="Value of mismatch score for extension (should be negative)")
+    extend_args.add_argument(
+        "--gap-penalty",
+        type=float,
+        default=-4,
+        help="Value of gap penalty for extension (should be negative)")
 
     misc_args = parser.add_argument_group("Misc")
     misc_args.add_argument(
@@ -540,8 +511,7 @@ def parse_args():
 
 if __name__ == "__main__":
     t1 = time.time()
-    sys.stderr.write( BOLDME+"|--Parsnp %s--|\n"%(VERSION))
-    sys.stderr.write( BOLDME+"For detailed documentation please see --> http://harvest.readthedocs.org/en/latest\n")
+    logger.info(f"|--Parsnp {VERSION}--|\n")
 
 
     parsnp_dir= sys.path[0]
@@ -650,17 +620,18 @@ if __name__ == "__main__":
     if len(input_files) < 2:
         logger.critical("Less than 2 input sequences provided...")
         sys.exit(1)
-    if args.validate_input:
-        from Bio import SeqIO
-        for f in input_files + ([ref] if ref and ref != "!" else []):
-            try:
-                records = SeqIO.parse(f, "fasta")
-            except:
-                logger.error("{} is an invalid sequence file!".format(f))
-            for record in records:
-                if any(c not in "GATCRYWSMKHBVDN" + "GATCRYWSMKHBVDN".lower() for c in record.seq):
-                    logger.error("Genome sequence {} has invalid characters {}! Skip!".format(f, set(str(record.seq)) - set("AGCTNagctn")))
-                    continue
+    for f in input_files + ([ref] if ref and ref != "!" else []):
+        try:
+            records = list(SeqIO.parse(f, "fasta"))
+        except:
+            logger.error("{} is an invalid sequence file!".format(f))
+        if args.extend_lcbs and len(records) > 1:
+            logger.error("Extending LCBs does not currently work with multi-contig inputs yet")
+            sys.exit(1)
+        for record in records:
+            if any(c not in "GATCRYWSMKHBVDN" + "GATCRYWSMKHBVDN".lower() for c in record.seq):
+                logger.error("Genome sequence {} has invalid characters {}! Skip!".format(f, set(str(record.seq)) - set("AGCTNagctn")))
+                continue
 
     # Parse reference if necessary
     if ref and ref != "!":
@@ -885,27 +856,31 @@ SETTINGS:
 
     #sort reference by largest replicon to smallest
     if sortem and os.path.exists(ref) and not autopick_ref:
-        logger.debug("Sorting reference replicons")
-        ff = open(ref, 'r')
-        seqs = ff.read().split(">")[1:]
-        seq_dict = {}
-        seq_len = {}
-        for seq in seqs:
-            try:
-                hdr, seq = seq.split("\n",1)
-            except ValueError:
-                # TODO Why do we ignore when theres a header but no sequence?
-                continue
-            seq_dict[hdr] = seq
-            seq_len[hdr] = len(seq) - seq.count('\n')
-        seq_len_sort = sorted(iter(seq_len.items()), key=operator.itemgetter(1), reverse=True)
-        ref = os.path.join(outputDir, os.path.basename(ref)+".ref")
-        ffo = open(ref, 'w')
-        for hdr, seq in seq_len_sort:
-            ffo.write(">%s\n"%(hdr))
-            ffo.write("%s"%(seq_dict[hdr]))
-        ff.close()
-        ffo.close()
+        sequences = SeqIO.parse(ref, "fasta")
+        new_ref = os.path.join(outputDir, os.path.basename(ref)+".ref")
+        SeqIO.write(sequences, new_ref, "fasta")
+        ref = new_ref
+        # logger.debug("Sorting reference replicons")
+        # ff = open(ref, 'r')
+        # seqs = ff.read().split(">")[1:]
+        # seq_dict = {}
+        # seq_len = {}
+        # for seq in seqs:
+            # try:
+                # hdr, seq = seq.split("\n",1)
+            # except ValueError:
+                # # TODO Why do we ignore when theres a header but no sequence?
+                # continue
+            # seq_dict[hdr] = seq
+            # seq_len[hdr] = len(seq) - seq.count('\n')
+        # seq_len_sort = sorted(iter(seq_len.items()), key=operator.itemgetter(1), reverse=True)
+        # ref = os.path.join(outputDir, os.path.basename(ref)+".ref")
+        # ffo = open(ref, 'w')
+        # for hdr, seq in seq_len_sort:
+            # ffo.write(">%s\n"%(hdr))
+            # ffo.write("%s"%(seq_dict[hdr]))
+        # ff.close()
+        # ffo.close()
     else:
         ref = genbank_ref
 
@@ -948,7 +923,7 @@ SETTINGS:
     if os.path.exists(os.path.join(outputDir, "alltogether.fasta")):
         os.remove(os.path.join(outputDir, "alltogether.fasta"))
     if os.path.exists(os.path.join(outputDir, "blocks/b1")):
-        ftrm = glob.glob(os.path.join(outputDir, "blocks/b*"))
+        ftrm = glob(os.path.join(outputDir, "blocks/b*"))
         for f in ftrm:
             shutil.rmtree(f)
 
@@ -1240,7 +1215,7 @@ Please verify recruited genomes are all strain of interest""")
     t2 = time.time()
     elapsed = float(t2)-float(t1)
     #print("-->Getting list of LCBs.."
-    allbfiles = glob.glob(os.path.join(blocks_dir, "b*/*"))
+    allbfiles = glob(os.path.join(blocks_dir, "b*/*"))
     blockfiles = []
     block_startpos = []
     block_dict = {}
@@ -1357,7 +1332,7 @@ Please verify recruited genomes are all strain of interest""")
         pool.close()
         pool.join()
         brkeys = list(bedfile_dict.keys())
-        brkeys.sort()
+        brkeys.sort() 
         for key in brkeys:
             bedfile.write(bedfile_dict[key])
         bedfile.close()
@@ -1366,15 +1341,51 @@ Please verify recruited genomes are all strain of interest""")
 
     annotation_dict = {}
     #TODO always using xtrafast?
+    parsnp_output = f"{outputDir}/parsnp.xmfa"
+    if args.extend_lcbs:
+        xmfa_file = f"{outputDir}/parsnp.xmfa"
+        with TemporaryDirectory() as temp_directory:
+            original_maf_file = f"{temp_directory}/parsnp-original.maf"
+            extended_xmfa_file = f"{outputDir}/parsnp-extended.xmfa"
+            fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord, fname_header_to_gcontigidx = ext.get_sequence_data(
+                    finalfiles + [ref], 
+                    index_files=False)
+            fname_to_contigid_to_coords = ext.xmfa_to_maf(
+                    xmfa_file, 
+                    original_maf_file, 
+                    fname_contigidx_to_header, 
+                    fname_contigid_to_length)
+            packed_write_result = ext.write_intercluster_regions(finalfiles + [ref], temp_directory, fname_to_contigid_to_coords)
+            fname_contigid_to_cluster_dir_to_length, fname_contigid_to_cluster_dir_to_adjacent_cluster = packed_write_result
+            cluster_files = glob(f"{temp_directory}/*.fasta")
+            clusterdir_expand, clusterdir_len = ext.get_new_extensions(
+                    cluster_files,
+                    args.match_score,
+                    args.mismatch_penalty,
+                    args.gap_penalty)
+            ext.write_extended_xmfa(
+                    original_maf_file,
+                    extended_xmfa_file,
+                    temp_directory,
+                    clusterdir_expand,
+                    clusterdir_len,
+                    fname_contigid_to_cluster_dir_to_length,
+                    fname_contigid_to_cluster_dir_to_adjacent_cluster,
+                    fname_header_to_gcontigidx,
+                    fname_contigid_to_length)
+            parsnp_output = extended_xmfa_file
+            os.remove(original_maf_file)
+
+
     if xtrafast or 1:
         #add genbank here, if present
         if len(genbank_ref) != 0:
-            rnc = "harvesttools -q -o %s/parsnp.ggr -x "%(outputDir)+outputDir+os.sep+"parsnp.xmfa"
+            rnc = f"harvesttools -q -o {outputDir}/parsnp.ggr -f {ref} -x {parsnp_output}"
             for file in genbank_files:
                 rnc += " -g %s " %(file)
             run_command(rnc)
         else:
-            run_command("harvesttools -q -o %s/parsnp.ggr -f %s -x "%(outputDir,ref)+outputDir+os.sep+"parsnp.xmfa")
+            run_command(f"harvesttools -q -o {outputDir}/parsnp.ggr -f {ref} -x {parsnp_output}")
 
         if run_recomb_filter:
             run_command("harvesttools -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir))
@@ -1394,7 +1405,7 @@ Please verify recruited genomes are all strain of interest""")
                     use_fasttree = True
                     break
         if not use_fasttree:
-            with tempfile.TemporaryDirectory() as raxml_output_dir:
+            with TemporaryDirectory() as raxml_output_dir:
                 command = "raxmlHPC-PTHREADS -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
                 run_command(command)
                 os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
@@ -1450,9 +1461,9 @@ Please verify recruited genomes are all strain of interest""")
     else:
         logger.info("Aligned %d genomes in %.2f seconds"%(totseqs,float(elapsed)))
     #cleanup
-    rmfiles = glob.glob(os.path.join(outputDir, "*.aln"))
+    rmfiles = glob(os.path.join(outputDir, "*.aln"))
     #rmfiles2 = glob.glob(outputDir+os.sep+"blocks/b*/*")
-    rmfiles3 = glob.glob(os.path.join(outputDir, "blocks/b*"))
+    rmfiles3 = glob(os.path.join(outputDir, "blocks/b*"))
     for f in rmfiles:
         os.remove(f)
     for f in rmfiles3:
@@ -1491,13 +1502,13 @@ Please verify recruited genomes are all strain of interest""")
     if not VERBOSE and os.path.exists("%s.delta"%(prefix)):
         os.remove("%s.delta"%(prefix))
 
-    for f in glob.glob(os.path.join(outputDir,"*.reps")):
+    for f in glob(os.path.join(outputDir,"*.reps")):
         if not VERBOSE and os.path.exists(f):
             os.remove(f)
 
-    for f in glob.glob(os.path.join(outputDir, "*.ref")):
-        if not VERBOSE and os.path.exists(f):
-            os.remove(f)
+    # for f in glob(os.path.join(outputDir, "*.ref")):
+        # if not VERBOSE and os.path.exists(f):
+            # os.remove(f)
 
     if not VERBOSE and os.path.exists("%s/psnn.ini"%(outputDir)):
         os.remove("%s/psnn.ini"%(outputDir))
