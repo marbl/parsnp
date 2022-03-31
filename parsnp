@@ -19,7 +19,7 @@ from glob import glob
 
 import extend as ext
 
-__version__ = "1.7.1"
+__version__ = "1.7.2"
 reroot_tree = True #use --midpoint-reroot
 
 try:
@@ -1383,7 +1383,7 @@ Please verify recruited genomes are all strain of interest""")
     if xtrafast or 1:
         #add genbank here, if present
         if len(genbank_ref) != 0:
-            rnc = f"harvesttools -q -o {outputDir}/parsnp.ggr -f {ref} -x {parsnp_output}"
+            rnc = f"harvesttools -q -o {outputDir}/parsnp.ggr -x {parsnp_output}"
             for file in genbank_files:
                 rnc += " -g %s " %(file)
             run_command(rnc)
