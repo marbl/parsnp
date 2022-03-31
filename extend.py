@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 import re
 from collections import namedtuple, defaultdict, Counter
-from tqdm import tqdm
 import os
 from Bio.Align import substitution_matrices
 from itertools import product, combinations
@@ -25,7 +24,7 @@ def get_sequence_data(reference, sequence_files, index_files=False):
     fname_header_to_gcontigidx = {}
     idx = 0
     for fasta_f in [reference] + sequence_files:
-        fname = Path(fasta_f).stem
+        fname = Path(fasta_f).name
         if index_files:
             fname_to_seqrecord[fname] = SeqIO.index(fasta_f, 'fasta')
             for contig_id, record in fname_to_seqrecord[fname].items():
@@ -50,7 +49,7 @@ def xmfa_to_maf(xmfa_file, output_maf_file, fname_contigidx_to_header, fname_con
                 if line.startswith("##SequenceIndex"):
                     index = int(line.split(' ')[1])
                 elif line.startswith("##SequenceFile"):
-                    filename = Path(line.split(' ')[1]).stem
+                    filename = Path(line.split(' ')[1]).name
                     index_to_fname[index] = filename
             elif line[0] != '=':
                 fasta_out.write(line + "\n")
@@ -132,7 +131,7 @@ def write_intercluster_regions(input_sequences, cluster_directory, fname_to_cont
         os.remove(f)
     for fasta_f in input_sequences:
         records = SeqIO.parse(fasta_f, 'fasta')
-        fname = Path(fasta_f).stem
+        fname = Path(fasta_f).name
         for record in records:
             coords = [(0, 0, "+", "START CAP")] + sorted(fname_to_contigid_to_coords[fname][record.id]) + [(len(record), len(record), "+", "END CAP")]
             for idx, (start, end, strand, cluster_idx) in enumerate(coords[1:-1]):
