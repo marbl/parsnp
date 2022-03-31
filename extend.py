@@ -18,13 +18,13 @@ from logger import logger
 
 
 #%%
-def get_sequence_data(sequence_files, index_files=False):
+def get_sequence_data(reference, sequence_files, index_files=False):
     fname_to_seqrecord = {}
     fname_contigid_to_length = {}
     fname_contigidx_to_header = {}
     fname_header_to_gcontigidx = {}
     idx = 0
-    for fasta_f in sequence_files:
+    for fasta_f in [reference] + sequence_files:
         fname = Path(fasta_f).stem
         if index_files:
             fname_to_seqrecord[fname] = SeqIO.index(fasta_f, 'fasta')
@@ -263,7 +263,11 @@ def write_extended_xmfa(
             cluster_idx = int(msa_record._annotations["pass"])
             for direction in ("right", "left"):
                 expand_by = clusterdir_expand[(cluster_idx, direction)]
-                expand_by = min(expand_by, clusterdir_len[(cluster_idx, direction)])
+                expand_by = min(
+                    expand_by, 
+                    max(cldir_to_len[(cluster_idx, direction)] for cldir_to_len in fname_contigid_to_cluster_dir_to_length.values())
+                ) 
+                # expand_by = min(expand_by, 7)
                 # expand_by = 10
                 # for seq_record in msa_record:
                 #     fname, contig_id, cluster_idx = header_parser.match(seq_record.id).groups()
@@ -294,11 +298,6 @@ def write_extended_xmfa(
                     adj_cluster_idx, adj_cluster_dir = fname_contigid_to_cluster_dir_to_adjacent_cluster[(fname, contig_id)][(cluster_idx, direction)]
                     fname_contigid_to_cluster_dir_to_length[(fname, contig_id)][(adj_cluster_idx, adj_cluster_dir)] -= len(str(flanking_seq.seq).replace("-", ''))
 
-                # for adj_cluster, adj_direction in clusterdir_to_adjacent_clusters[(cluster_idx, direction)]:
-                #     if isinstance(adj_cluster, str) and "CAP" in adj_cluster:
-                #         continue
-                #     fname_contigid_to_cluster_dir_to_length
-                #     clusterdir_len[(adj_cluster, adj_direction)] -= expand_by
 
 
             # for seq_record in msa_record:
