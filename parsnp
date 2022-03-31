@@ -855,7 +855,9 @@ SETTINGS:
         # fnafiles.remove(ref)
 
     #sort reference by largest replicon to smallest
-    if sortem and os.path.exists(ref) and not autopick_ref:
+    if ref in fnafiles:
+        fnafiles = [f for f in fnafiles if f != ref]
+    elif sortem and os.path.exists(ref) and not autopick_ref:
         sequences = SeqIO.parse(ref, "fasta")
         new_ref = os.path.join(outputDir, os.path.basename(ref)+".ref")
         SeqIO.write(sequences, new_ref, "fasta")
@@ -1348,7 +1350,8 @@ Please verify recruited genomes are all strain of interest""")
             original_maf_file = f"{temp_directory}/parsnp-original.maf"
             extended_xmfa_file = f"{outputDir}/parsnp-extended.xmfa"
             fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord, fname_header_to_gcontigidx = ext.get_sequence_data(
-                    finalfiles + [ref], 
+                    ref,
+                    finalfiles, 
                     index_files=False)
             fname_to_contigid_to_coords = ext.xmfa_to_maf(
                     xmfa_file, 
