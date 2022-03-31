@@ -433,12 +433,12 @@ def parse_args():
     extend_args.add_argument(
         "--mismatch-penalty",
         type=float,
-        default=-2,
+        default=-4,
         help="Value of mismatch score for extension (should be negative)")
     extend_args.add_argument(
         "--gap-penalty",
         type=float,
-        default=-4,
+        default=-2,
         help="Value of gap penalty for extension (should be negative)")
 
     misc_args = parser.add_argument_group("Misc")
