@@ -411,7 +411,7 @@ def parse_args():
         "-u",
         "--unaligned",
         action = "store_true",
-        help = "Ouput unaligned regions")
+        help = "Output unaligned regions")
 
     recombination_args = parser.add_argument_group("Recombination filtration")
     #TODO -x was a duplicate flag but no longer parsed as filter-phipack-snps in the current parsnp version
