@@ -3253,7 +3253,7 @@ int main ( int argc, char* argv[] )
     dif = difftime (tend,tstart);
     
     cerr << "Parsnp: Finished core genome alignment" << endl;
-    printf("        See log file for futher details. Total processing time: %.0lf seconds \n\n", dif );
+    printf("        See log file for further details. Total processing time: %.0lf seconds \n\n", dif );
     exit(0);
 }
 
