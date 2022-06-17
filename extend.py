@@ -15,13 +15,12 @@ from Bio.AlignIO.MafIO import MafWriter, MafIterator
 from Bio.AlignIO.MauveIO import MauveWriter, MauveIterator
 from logger import logger
 import pyabpoa as pa
-from sourmash import MinHash
 import scipy
 from matplotlib import pyplot as plt
 
 
 #%%
-def get_ani(sequences):
+def get_match_maxmatch(sequences):
     n = max(len(s) for s in sequences)
     matches = 0
     max_matches = 0
@@ -31,7 +30,7 @@ def get_ani(sequences):
         matches += sum(pileup[c]*(pileup[c]-1) for c in pileup if c in "ATGCatgc")
         matches += sum(pileup[ambig] * (sum(pileup[c] for c in pileup if c in "ATGCatgcNn") - 1) for ambig in "Nn")
         max_matches += nongaps * (len(sequences) - 1)
-    return matches/max_matches
+    return matches, max_matches
 
 
 def get_ani_cutoff(sequences, cutoff=0.95):
@@ -62,10 +61,10 @@ def get_sequence_data(reference, sequence_files, index_files=False):
             for contig_id, record in fname_to_seqrecord[fname].items():
                 fname_contigid_to_length[fname, contig_id] = len(record)
         for ctg_idx, record in enumerate(SeqIO.parse(fasta_f, 'fasta')):
-
             idx += 1
-            fname_contigidx_to_header[fname, ctg_idx] = record.id
-            fname_contigid_to_length[fname, record.id] = len(record)
+            record.description = record.description.replace(" ", "^")
+            fname_contigidx_to_header[fname, ctg_idx] = record.description
+            fname_contigid_to_length[fname, record.description] = len(record)
     return fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord
 
 #%%
@@ -85,7 +84,7 @@ def xmfa_to_maf(xmfa_file, output_maf_file, fname_contigidx_to_header, fname_con
                     filename = Path(line.split(' ')[1]).name
                     index_to_fname[index] = filename
                 elif line.startswith("##SequenceHeader"):
-                    header = line.split('>')[1]
+                    header = line.split('>')[1].replace(" ", "^")
                     fname_header_to_gcontigidx[filename, header] = index
             elif line[0] != '=':
                 fasta_out.write(line + "\n")
@@ -131,6 +130,7 @@ def xmfa_to_maf(xmfa_file, output_maf_file, fname_contigidx_to_header, fname_con
             # Add annotations to the seqrecord in order to pass to mafwriter
             fname = index_to_fname[int(file_idx)]
             contig_id = fname_contigidx_to_header[fname, contig_idx]
+            # print(contig_id)
             src_size = fname_contigid_to_length[fname, contig_id]
             size = len(str(seqrecord.seq).replace("-", ''))
             seqrecord.id = f"{fname}:<-file:contig->:{contig_id}"
@@ -239,6 +239,7 @@ def get_new_extensions(cluster_files, match_score, mismatch_score, gap_penalty):
 #%%
 
 def write_xmfa_header(extended_xmfa_file, fname_header_to_gcontigidx, fname_contigid_to_length, num_clusters):
+    print(fname_contigid_to_length)
 
     with open(extended_xmfa_file, 'w') as xmfa_out:#, open(extended_xmfa_file + ".maf", 'w') as maf_out:
         # maf_writer = MafWriter(maf_out)
@@ -249,7 +250,7 @@ def write_xmfa_header(extended_xmfa_file, fname_header_to_gcontigidx, fname_cont
         for (fname, header), global_idx in fname_header_to_gcontigidx.items():
             xmfa_out.write(f"##SequenceIndex {global_idx}\n")
             xmfa_out.write(f"##SequenceFile {fname}\n")
-            xmfa_out.write(f"##SequenceHeader >{header}\n")
+            xmfa_out.write(f"##SequenceHeader >{header.replace('^', ' ')}\n")
             xmfa_out.write(f"##SequenceLength {fname_contigid_to_length[(fname, header)]}\n")
         xmfa_out.write(f"##IntervalCount {num_clusters}\n")
 
@@ -294,23 +295,33 @@ def write_extended_xmfa(
     for fname, contigid in fname_contigid_to_cluster_dir_to_length.keys():
         for cluster, _ in fname_contigid_to_cluster_dir_to_length[(fname, contigid)].keys():
             clusters.add(cluster)
-    write_xmfa_header(extended_maf_file, fname_header_to_gcontigidx, fname_contigid_to_length, cluster)
+    write_xmfa_header(extended_maf_file, fname_header_to_gcontigidx, fname_contigid_to_length, len(clusters))
     with open(original_maf_file, 'r') as maf_in:
         maf_iterator = MafIterator(maf_in)
         # maf_writer = MafWriter(maf_out)
         # maf_writer = MauveWriter(maf_out)
         # maf_writer.write_header()
+        old_matches = 0
+        old_max_matches = 0
+        new_matches = 0
+        new_max_matches = 0
+        old_nucs_aligned = 0
+        new_nucs_aligned = 0
+        print(clusterdir_expand)
         for idx, msa_record in enumerate(maf_iterator):
             fname, contig_id = header_parser.match(msa_record[0].id).groups()
             cluster_idx = int(msa_record._annotations["pass"])
+            record_matches, record_maxmatches = get_match_maxmatch([record.seq for record in msa_record])
+            old_matches, old_max_matches = record_matches + old_matches, record_maxmatches + old_max_matches
+            old_nucs_aligned += sum(len(record.seq) for record in msa_record)
             for direction in ("right", "left"):
                 expand_by = clusterdir_expand[(cluster_idx, direction)]
-
                 flanks = []
                 inter_cluster_sequences = SeqIO.index(f"{cluster_directory}/cluster{cluster_idx}-{direction}.fasta", 'fasta')
                 for seq_record in msa_record:
                     fname, contig_id = header_parser.match(seq_record.id).groups()
                     cluster_idx = int(cluster_idx)
+                    print(inter_cluster_sequences)
                     flanking_seq = inter_cluster_sequences[f"{fname}:<-file:contig->:{contig_id}"]
                     flanks.append(flanking_seq[:fname_contigid_to_cluster_dir_to_length[(fname, contig_id)][(cluster_idx, direction)]])
                 lengths = Counter(len(s) for s in flanks)
@@ -346,11 +357,8 @@ def write_extended_xmfa(
                 # print(seqs_to_align.values(), flush=True)
                 res = aligner.msa(list(seqs_to_align.values()), out_cons=False, out_msa=True)
                 ani_cutoff = get_ani_cutoff(res.msa_seq)
-                if ani_cutoff == 1:
-                    print([s[:10] for s in res.msa_seq])
                 msa_seqs = [seq[:ani_cutoff] for seq in res.msa_seq]
                 logger.debug(f"Expanding cluster {cluster_idx} to the {direction} by {ani_cutoff}/{cluster_space_left}")
-                print(f"Expanding cluster {cluster_idx} to the {direction} by {ani_cutoff}/{cluster_space_left}")
 
                 # continue
                 flanking_seqs = {}
@@ -382,8 +390,13 @@ def write_extended_xmfa(
             #     fname, contig_id = header_parser.match(seq_record.id).groups()
                 # seq_record.id = contig_id
             msa_record.annotations["cluster"] = cluster_idx
+            record_matches, record_maxmatches = get_match_maxmatch([record.seq for record in msa_record])
+            new_matches, new_max_matches = record_matches + new_matches, record_maxmatches + new_max_matches
+            new_nucs_aligned += sum(len(record.seq) for record in msa_record)
             write_xmfa_cluster(extended_maf_file, [msa_record], fname_header_to_gcontigidx)
             # maf_writer.write_alignment(msa_record)
+    logger.debug(f"{((new_nucs_aligned - old_nucs_aligned) / old_nucs_aligned ) * 100:.3f}% more nucleotides aligned!")
+    logger.debug(f"ANI {old_matches/old_max_matches:.4f} --> {new_matches/new_max_matches:.4f}")
 
 #%%
 def check_maf(maf_file, fname_to_seqrecords):
@@ -440,47 +453,47 @@ def validate_coords(contig_to_coords):
 # validate_coords(coords_extended)
 # coords_original = check_maf("parsnp.maf")
 #%%
-match_score = 4
-mismatch_penalty = -8
-gap_penalty = -4
-validate = True
-genome_dir = "sars-100"
-sequence_files = glob(f"{genome_dir}/*.fa*")
-xmfa_file = f"{genome_dir}/parsnp.xmfa"
-cluster_directory = "clusters/"
-ref = f"{genome_dir}/GISAID_30278.fa.ref"
-finalfiles = list(set(sequence_files) - set([ref]))
-temp_directory = "temp/"
-original_maf_file = f"{genome_dir}/parsnp.maf"
-extended_xmfa_file = f"{genome_dir}/parsnp-extended.xmfa"
-fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord = get_sequence_data(
-        ref,
-        finalfiles,
-        index_files=True)
-fname_to_contigid_to_coords, fname_header_to_gcontigidx = xmfa_to_maf(
-        xmfa_file,
-        original_maf_file,
-        fname_contigidx_to_header,
-        fname_contigid_to_length)
-packed_write_result = write_intercluster_regions(finalfiles + [ref], temp_directory, fname_to_contigid_to_coords)
-fname_contigid_to_cluster_dir_to_length, fname_contigid_to_cluster_dir_to_adjacent_cluster = packed_write_result
-cluster_files = glob(f"{temp_directory}/*.fasta")
-clusterdir_expand, clusterdir_len = get_new_extensions(
-        cluster_files,
-        match_score,
-        mismatch_penalty,
-        gap_penalty)
-write_extended_xmfa(
-        original_maf_file,
-        extended_xmfa_file,
-        temp_directory,
-        clusterdir_expand,
-        clusterdir_len,
-        fname_contigid_to_cluster_dir_to_length,
-        fname_contigid_to_cluster_dir_to_adjacent_cluster,
-        fname_header_to_gcontigidx,
-        fname_contigid_to_length)
-parsnp_output = extended_xmfa_file
+# match_score = 4
+# mismatch_penalty = -8
+# gap_penalty = -4
+# validate = True
+# genome_dir = "sars-100"
+# sequence_files = glob(f"{genome_dir}/*.fa*")
+# xmfa_file = f"{genome_dir}/parsnp.xmfa"
+# cluster_directory = "clusters/"
+# ref = f"{genome_dir}/GISAID_30278.fa.ref"
+# finalfiles = list(set(sequence_files) - set([ref]))
+# temp_directory = "temp/"
+# original_maf_file = f"{genome_dir}/parsnp.maf"
+# extended_xmfa_file = f"{genome_dir}/parsnp-extended.xmfa"
+# fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord = get_sequence_data(
+        # ref,
+        # finalfiles,
+        # index_files=True)
+# fname_to_contigid_to_coords, fname_header_to_gcontigidx = xmfa_to_maf(
+        # xmfa_file,
+        # original_maf_file,
+        # fname_contigidx_to_header,
+        # fname_contigid_to_length)
+# packed_write_result = write_intercluster_regions(finalfiles + [ref], temp_directory, fname_to_contigid_to_coords)
+# fname_contigid_to_cluster_dir_to_length, fname_contigid_to_cluster_dir_to_adjacent_cluster = packed_write_result
+# cluster_files = glob(f"{temp_directory}/*.fasta")
+# clusterdir_expand, clusterdir_len = get_new_extensions(
+        # cluster_files,
+        # match_score,
+        # mismatch_penalty,
+        # gap_penalty)
+# write_extended_xmfa(
+        # original_maf_file,
+        # extended_xmfa_file,
+        # temp_directory,
+        # clusterdir_expand,
+        # clusterdir_len,
+        # fname_contigid_to_cluster_dir_to_length,
+        # fname_contigid_to_cluster_dir_to_adjacent_cluster,
+        # fname_header_to_gcontigidx,
+        # fname_contigid_to_length)
+# parsnp_output = extended_xmfa_file
 
 
 
@@ -505,13 +518,13 @@ parsnp_output = extended_xmfa_file
 #         fname_contigid_to_cluster_dir_to_length,
 #         fname_contigid_to_cluster_dir_to_adjacent_cluster)
 
-if validate:
-    # fname_to_contigid_to_coords = xmfa_to_maf(
-    #         extended_xmfa_file,
-    #         extended_xmfa_file + ".maf",
-    #         fname_contigidx_to_header,
-    #         fname_contigid_to_length)
-    coords_extended = check_maf(extended_xmfa_file + ".maf", fname_to_seqrecord)
-    validate_coords(coords_extended)
-    # coords_original = check_maf(original_maf_file, fname_to_seqrecord)
-    # validate_coords(coords_original)
+# if validate:
+    # # fname_to_contigid_to_coords = xmfa_to_maf(
+    # #         extended_xmfa_file,
+    # #         extended_xmfa_file + ".maf",
+    # #         fname_contigidx_to_header,
+    # #         fname_contigid_to_length)
+    # coords_extended = check_maf(extended_xmfa_file + ".maf", fname_to_seqrecord)
+    # validate_coords(coords_extended)
+    # # coords_original = check_maf(original_maf_file, fname_to_seqrecord)
+    # # validate_coords(coords_original)
