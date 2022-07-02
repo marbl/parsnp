@@ -22,20 +22,8 @@ import time
 from tqdm import tqdm
 from pprint import pprint
 #%%
-def get_match_maxmatch(sequences):
-    n = max(len(s) for s in sequences)
-    matches = 0
-    max_matches = 0
-    for i in range(n):
-        pileup = Counter(s[i] for s in sequences)
-        nongaps = sum(pileup[c] for c in pileup if c not in "-")
-        matches += sum(pileup[c]*(pileup[c]-1) for c in pileup if c in "ATGCatgc")
-        matches += sum(pileup[ambig] * (sum(pileup[c] for c in pileup if c in "ATGCatgcNn") - 1) for ambig in "Nn")
-        max_matches += nongaps * (len(sequences) - 1)
-    return matches, max_matches
 
-
-def get_ani_cutoff(sequences, cutoff=0.95):
+def get_ani_cutoff(sequences, cutoff=0):
     n = max(len(s) for s in sequences)
     matches = 0
     max_matches = 0
@@ -46,8 +34,8 @@ def get_ani_cutoff(sequences, cutoff=0.95):
         matches += sum(pileup[ambig] * (sum(pileup[c] for c in pileup if c in "ATGCatgcNn") - 1) for ambig in "Nn")
         max_matches += nongaps * (len(sequences) - 1)
         if matches/max_matches < cutoff:
-            return i
-    return n
+            return (matches, max_matches), i
+    return (matches, max_matches), n
 
 
 #%%
@@ -315,7 +303,7 @@ def write_extended_xmfa(
         for idx, msa_record in (enumerate(maf_iterator)):
             fname, contig_id = header_parser.match(msa_record[0].id).groups()
             cluster_idx = int(msa_record._annotations["pass"])
-            record_matches, record_maxmatches = get_match_maxmatch([record.seq for record in msa_record])
+            (record_matches, record_maxmatches), _ = get_match_maxmatch([record.seq for record in msa_record])
             old_matches, old_max_matches = record_matches + old_matches, record_maxmatches + old_max_matches
             old_nucs_aligned += sum(len(record.seq) for record in msa_record)
             for direction in ("right", "left"):
@@ -394,7 +382,7 @@ def write_extended_xmfa(
                 while idx in empty_seqs:
                     msa_result.append("-"*len(msa_result_temp[0]))
                     idx += 1
-                ani_cutoff = get_ani_cutoff(msa_result, cutoff)
+                (_, _), ani_cutoff = get_ani_cutoff(msa_result, cutoff)
                 msa_seqs = [seq[:ani_cutoff] for seq in msa_result]
                 # for i, seq in enumerate(msa_seqs):
                     # print(f">Seq{i}")
@@ -432,7 +420,7 @@ def write_extended_xmfa(
             #     fname, contig_id = header_parser.match(seq_record.id).groups()
                 # seq_record.id = contig_id
             msa_record.annotations["cluster"] = cluster_idx
-            record_matches, record_maxmatches = get_match_maxmatch([record.seq for record in msa_record])
+            (record_matches, record_maxmatches), _ = get_match_maxmatch([record.seq for record in msa_record])
             new_matches, new_max_matches = record_matches + new_matches, record_maxmatches + new_max_matches
             new_nucs_aligned += sum(len(record.seq) for record in msa_record)
             write_xmfa_cluster(extended_maf_file, [msa_record], fname_header_to_gcontigidx)
