@@ -23,10 +23,11 @@ from tqdm import tqdm
 from pprint import pprint
 #%%
 
-def get_ani_cutoff(sequences, cutoff=0):
+def get_ani_cutoff(sequences, cutoff=0, grace_period=5):
     n = max(len(s) for s in sequences)
     matches = 0
     max_matches = 0
+    below_cutoff = 0
     for i in range(n):
         pileup = Counter(s[i] for s in sequences)
         nongaps = sum(pileup[c] for c in pileup if c not in "-")
@@ -34,8 +35,12 @@ def get_ani_cutoff(sequences, cutoff=0):
         matches += sum(pileup[ambig] * (sum(pileup[c] for c in pileup if c in "ATGCatgcNn") - 1) for ambig in "Nn")
         max_matches += nongaps * (len(sequences) - 1)
         if matches/max_matches < cutoff:
-            return (matches, max_matches), i
-    return (matches, max_matches), n
+            below_cutoff += 1
+            if below_cutoff > grace_period:
+                return (matches, max_matches), i - below_cutoff
+        else: 
+            below_cutoff = 0
+    return (matches, max_matches), n - below_cutoff
 
 
 #%%
@@ -303,7 +308,7 @@ def write_extended_xmfa(
         for idx, msa_record in (enumerate(maf_iterator)):
             fname, contig_id = header_parser.match(msa_record[0].id).groups()
             cluster_idx = int(msa_record._annotations["pass"])
-            (record_matches, record_maxmatches), _ = get_match_maxmatch([record.seq for record in msa_record])
+            (record_matches, record_maxmatches), _ = get_ani_cutoff([record.seq for record in msa_record])
             old_matches, old_max_matches = record_matches + old_matches, record_maxmatches + old_max_matches
             old_nucs_aligned += sum(len(record.seq) for record in msa_record)
             for direction in ("right", "left"):
@@ -420,7 +425,7 @@ def write_extended_xmfa(
             #     fname, contig_id = header_parser.match(seq_record.id).groups()
                 # seq_record.id = contig_id
             msa_record.annotations["cluster"] = cluster_idx
-            (record_matches, record_maxmatches), _ = get_match_maxmatch([record.seq for record in msa_record])
+            (record_matches, record_maxmatches), _ = get_ani_cutoff([record.seq for record in msa_record])
             new_matches, new_max_matches = record_matches + new_matches, record_maxmatches + new_max_matches
             new_nucs_aligned += sum(len(record.seq) for record in msa_record)
             write_xmfa_cluster(extended_maf_file, [msa_record], fname_header_to_gcontigidx)

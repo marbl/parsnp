@@ -1237,8 +1237,6 @@ Adjust params and rerun. If issue persists please submit a GitHub issue""")
 Please verify recruited genomes are all strain of interest""")
     else:
         pass
-    t2 = time.time()
-    elapsed = float(t2)-float(t1)
     #print("-->Getting list of LCBs.."
     allbfiles = glob(os.path.join(blocks_dir, "b*/*"))
     blockfiles = []
@@ -1370,7 +1368,6 @@ Please verify recruited genomes are all strain of interest""")
     if args.extend_lcbs:
         xmfa_file = f"{outputDir}/parsnp.xmfa"
         with TemporaryDirectory() as temp_directory:
-            temp_directory = outputDir
             original_maf_file = f"{outputDir}/parsnp-original.maf"
             extended_xmfa_file = f"{outputDir}/parsnp-extended.xmfa"
             fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord = ext.get_sequence_data(
@@ -1483,6 +1480,8 @@ Please verify recruited genomes are all strain of interest""")
                 run_command("harvesttools --midpoint-reroot -u -q -i "+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
 
 
+    t2 = time.time()
+    elapsed = float(t2)-float(t1)
     if float(elapsed)/float(60.0) > 60:
         logger.info("Aligned %d genomes in %.2f hours"%(totseqs,float(elapsed)/float(3600.0)))
     elif float(elapsed) > 60:
