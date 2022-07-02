@@ -19,7 +19,7 @@ from glob import glob
 
 import extend as ext
 
-__version__ = "1.7.2"
+__version__ = "1.7.3"
 reroot_tree = True #use --midpoint-reroot
 
 try:
@@ -426,6 +426,16 @@ def parse_args():
         action="store_true",
         help="Extend the boundaries of LCBs with an ungapped alignment")
     extend_args.add_argument(
+        "--extend-ani-cutoff",
+        type=float,
+        default=0.95,
+        help="Cutoff ANI for lcb extension")
+    extend_args.add_argument(
+        "--extend-indel-cutoff",
+        type=int,
+        default=50,
+        help="Cutoff for indels in LCB extension region. LCB extension will be at most min(seqs) + cutoff bases")
+    extend_args.add_argument(
         "--match-score",
         type=float,
         default=5,
@@ -626,6 +636,7 @@ if __name__ == "__main__":
         except:
             logger.error("{} is an invalid sequence file!".format(f))
         if args.extend_lcbs and len(records) > 1:
+            print(f)
             logger.error("Extending LCBs does not currently work with multi-contig inputs yet")
             sys.exit(1)
         for record in records:
@@ -810,7 +821,19 @@ SETTINGS:
                 logger.warning("Reference genome sequence %s has '-' in the sequence!"%((ref)))
         reflen = len(seq) - seq.count('\n')
 
-    for input_file in input_files:
+    for input_file in input_files[:]:
+        try:
+            record = list(SeqIO.parse(input_file, "fasta"))
+            if len(record) == 0:
+                input_files.remove(f)
+                logger.error(f"{f} is an empty file!")
+                continue
+
+        except:
+            input_files.remove(f)
+            logger.error(f"Could not parse {f}!")
+            continue
+
         ff = open(input_file, 'r')
         hdr = ff.readline()
         seq = ff.read()
@@ -1347,7 +1370,8 @@ Please verify recruited genomes are all strain of interest""")
     if args.extend_lcbs:
         xmfa_file = f"{outputDir}/parsnp.xmfa"
         with TemporaryDirectory() as temp_directory:
-            original_maf_file = f"{temp_directory}/parsnp-original.maf"
+            temp_directory = outputDir
+            original_maf_file = f"{outputDir}/parsnp-original.maf"
             extended_xmfa_file = f"{outputDir}/parsnp-extended.xmfa"
             fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord = ext.get_sequence_data(
                     ref,
@@ -1375,7 +1399,10 @@ Please verify recruited genomes are all strain of interest""")
                     fname_contigid_to_cluster_dir_to_length,
                     fname_contigid_to_cluster_dir_to_adjacent_cluster,
                     fname_header_to_gcontigidx,
-                    fname_contigid_to_length)
+                    fname_contigid_to_length,
+                    args.extend_ani_cutoff,
+                    args.extend_indel_cutoff,
+                    threads)
             parsnp_output = extended_xmfa_file
             os.remove(original_maf_file)
 

@@ -6,6 +6,7 @@ from glob import glob
 import tempfile
 from pathlib import Path
 import re
+import subprocess
 from collections import namedtuple, defaultdict, Counter
 import os
 from Bio.Align import substitution_matrices
@@ -290,7 +291,10 @@ def write_extended_xmfa(
         fname_contigid_to_cluster_dir_to_length,
         fname_contigid_to_cluster_dir_to_adjacent_cluster,
         fname_header_to_gcontigidx,
-        fname_contigid_to_length):
+        fname_contigid_to_length,
+        cutoff,
+        indel_cutoff,
+        cpu_count=1): # cutoff is the min ANI 
     header_parser = re.compile(r"(.+):<-file:contig->:(.+)")
     clusters = set()
     for fname, contigid in fname_contigid_to_cluster_dir_to_length.keys():
@@ -357,28 +361,46 @@ def write_extended_xmfa(
                     seqs_to_align[contig_id] = str(flanking_seq.seq)
                 minlen = min(len(s) for s in seqs_to_align.values())
                 for k in seqs_to_align:
-                    seqs_to_align[k] = seqs_to_align[k][:minlen+10]
-                aligner = pa.msa_aligner()
+                    seqs_to_align[k] = seqs_to_align[k][:minlen+indel_cutoff]
                 seqlist = list(seqs_to_align.values())
                 empty_seqs = [i for i in range(len(seqlist)) if seqlist[i] == ""]
                 nonempty_seqs = [s for s in seqlist if s != ""]
-                # time.sleep(.25)
-                res = aligner.msa(nonempty_seqs, out_cons=False, out_msa=True)
-                # res.print_msa()
+                msa_result_temp = []
+                if minlen < 50:
+                    aligner = pa.msa_aligner()
+                    # time.sleep(.25)
+                    res = aligner.msa(nonempty_seqs, out_cons=False, out_msa=True)
+                    msa_result_temp = res.msa_seq
+                else:
+                    nonempty_seq_file = f"{cluster_directory}/cluster{cluster_idx}_{direction}_nonempty.fa"
+                    SeqIO.write(
+                        (SeqIO.SeqRecord(Seq(sequence), id=str(seq_idx)) for seq_idx, sequence in enumerate(nonempty_seqs)),
+                        nonempty_seq_file,
+                        "fasta")
+                    subprocess.check_call(
+                        f"muscle -super5 {nonempty_seq_file} -output {nonempty_seq_file}_aligned.fa -threads {cpu_count}", 
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.STDOUT,
+                        shell=True)
+                    msa_result_temp = [str(record.seq) for record in SeqIO.parse(f"{nonempty_seq_file}_aligned.fa", "fasta")]
                 msa_result = []
                 idx = 0
-                for aligned_seq in res.msa_seq:
+                for aligned_seq in msa_result_temp:
                     while idx in empty_seqs:
-                        msa_result.append("-"*len(res.msa_seq[0]))
+                        msa_result.append("-"*len(msa_result_temp[0]))
                         idx += 1
                     msa_result.append(aligned_seq)
                     idx += 1
                 while idx in empty_seqs:
-                    msa_result.append("-"*len(res.msa_seq[0]))
+                    msa_result.append("-"*len(msa_result_temp[0]))
                     idx += 1
-                ani_cutoff = get_ani_cutoff(msa_result)
+                ani_cutoff = get_ani_cutoff(msa_result, cutoff)
                 msa_seqs = [seq[:ani_cutoff] for seq in msa_result]
-                logger.debug(f"Expanding cluster {cluster_idx} to the {direction} by {ani_cutoff}/{cluster_space_left}")
+                # for i, seq in enumerate(msa_seqs):
+                    # print(f">Seq{i}")
+                    # print(seq)
+                expansion_nucs = max(len(s.replace("-", "")) for s in msa_seqs)
+                logger.debug(f"Expanding cluster {cluster_idx} to the {direction} by {expansion_nucs}/{cluster_space_left}")
 
                 # continue
                 flanking_seqs = {}
@@ -415,8 +437,9 @@ def write_extended_xmfa(
             new_nucs_aligned += sum(len(record.seq) for record in msa_record)
             write_xmfa_cluster(extended_maf_file, [msa_record], fname_header_to_gcontigidx)
             # maf_writer.write_alignment(msa_record)
-    logger.debug(f"{((new_nucs_aligned - old_nucs_aligned) / old_nucs_aligned ) * 100:.3f}% more nucleotides aligned!")
-    logger.debug(f"ANI {old_matches/old_max_matches:.4f} --> {new_matches/new_max_matches:.4f}")
+    total_length = sum(l for l in fname_contigid_to_length.values())
+    logger.debug(f"COVERAGE {(old_nucs_aligned / total_length) * 100:.3f}% --> {(new_nucs_aligned / total_length)*100:.3f}%")
+    logger.debug(f"ANI {100*(old_matches/old_max_matches):.2f}% --> {100*(new_matches/new_max_matches):.2f}%")
 
 #%%
 def check_maf(maf_file, fname_to_seqrecords):
