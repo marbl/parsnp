@@ -19,7 +19,7 @@ from glob import glob
 
 import extend as ext
 
-__version__ = "1.7.2"
+__version__ = "1.7.3"
 reroot_tree = True #use --midpoint-reroot
 
 try:
@@ -224,13 +224,13 @@ def run_command(command,ignorerc=0):
       >>$ {}
       Please veryify input data and restart Parsnp.
       If the problem persists please contact the Parsnp development team.
-      
+
       STDOUT:
       {}
-      
+
       STDERR:
       {}""".format(command, fstdout, fstderr))
-    
+
       sys.exit(rc)
    else:
       logger.debug(fstdout)
@@ -426,6 +426,16 @@ def parse_args():
         action="store_true",
         help="Extend the boundaries of LCBs with an ungapped alignment")
     extend_args.add_argument(
+        "--extend-ani-cutoff",
+        type=float,
+        default=0.95,
+        help="Cutoff ANI for lcb extension")
+    extend_args.add_argument(
+        "--extend-indel-cutoff",
+        type=int,
+        default=50,
+        help="Cutoff for indels in LCB extension region. LCB extension will be at most min(seqs) + cutoff bases")
+    extend_args.add_argument(
         "--match-score",
         type=float,
         default=5,
@@ -592,7 +602,7 @@ if __name__ == "__main__":
         missing = missing or (not has_fasttree)
     if missing:
         sys.exit(1)
-        
+
     # Create output dir
     if outputDir == "." or outputDir == "./" or outputDir == "/":
         logger.critical("Specified output dir is current working dir or root dir! will clobber any parsnp.* results")
@@ -626,6 +636,7 @@ if __name__ == "__main__":
         except:
             logger.error("{} is an invalid sequence file!".format(f))
         if args.extend_lcbs and len(records) > 1:
+            print(f)
             logger.error("Extending LCBs does not currently work with multi-contig inputs yet")
             sys.exit(1)
         for record in records:
@@ -792,7 +803,7 @@ SETTINGS:
 
     allfiles = []
     fnaf_sizes = {}
-    allfile_dict = {} 
+    allfile_dict = {}
     reflen = 0
     fnafiles = []
     if ref == "!":
@@ -810,7 +821,18 @@ SETTINGS:
                 logger.warning("Reference genome sequence %s has '-' in the sequence!"%((ref)))
         reflen = len(seq) - seq.count('\n')
 
-    for input_file in input_files:
+    for input_file in input_files[:]:
+        try:
+            record = list(SeqIO.parse(input_file, "fasta"))
+            if len(record) == 0:
+                input_files.remove(input_file)
+                logger.error(f"{input_file} is an empty file!")
+                continue
+        except:
+            input_files.remove(input_file)
+            logger.error(f"Could not parse {input_file}!")
+            continue
+
         ff = open(input_file, 'r')
         hdr = ff.readline()
         seq = ff.read()
@@ -1017,27 +1039,27 @@ SETTINGS:
                     if randomly_selected_ref:
                         logger.warning("You are using a randomly selected genome to recruit genomes from your input...")
                     mash_out = subprocess.check_output([
-                            "mash", "dist", "-t", 
-                            "-d", str(max_mash_dist), 
-                            "-p", str(threads), 
-                            ref, 
+                            "mash", "dist", "-t",
+                            "-d", str(max_mash_dist),
+                            "-p", str(threads),
+                            ref,
                             "-l", all_genomes_fname],
                         stderr=open(os.path.join(outputDir, "mash.err"), 'w')).decode('utf-8')
                     finalfiles = [line.split('\t')[0] for line in mash_out.split('\n')[1:] if line != '' and len(line.split('\t')) > 1 and line.split('\t')[1].strip() != '']
                 elif use_ani:
                     if randomly_selected_ref:
                         subprocess.check_call([
-                                "fastANI", 
-                                "--ql", all_genomes_fname, 
-                                "--rl", all_genomes_fname, 
+                                "fastANI",
+                                "--ql", all_genomes_fname,
+                                "--rl", all_genomes_fname,
                                 "-t", str(threads),
                                 "-o", os.path.join(outputDir, "fastANI.tsv")],
                             stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
                     else:
                         subprocess.check_call([
-                                "fastANI", 
-                                "-q", ref, 
-                                "--rl", all_genomes_fname, 
+                                "fastANI",
+                                "-q", ref,
+                                "--rl", all_genomes_fname,
                                 "-t", str(threads),
                                 "-o", os.path.join(outputDir, "fastANI.tsv")],
                             stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
@@ -1048,18 +1070,18 @@ SETTINGS:
                             line = line.split('\t')
                             if float(line[2]) >= min_ani_cutoff:
                                 genome_to_genomes[line[0]].add(line[1])
-                        
+
                         # for g in genome_to_genomes:
                             # print(len(g))
                         ani_ref = max(genome_to_genomes, key=(lambda key: len(genome_to_genomes[key])))
                         if autopick_ref:
                             auto_ref = ani_ref
                         finalfiles = list(genome_to_genomes[ani_ref])
-                        
+
                 # shutil.rmtree(tmp_dir)
             except subprocess.CalledProcessError as e:
                 logger.critical(
-                    "Recruitment failed with exception {}. More details may be found in the *.err output log".format(str(e))) 
+                    "Recruitment failed with exception {}. More details may be found in the *.err output log".format(str(e)))
                 # shutil.rmtree(tmp_dir)
             allfiles.extend(finalfiles)
 
@@ -1214,8 +1236,6 @@ Adjust params and rerun. If issue persists please submit a GitHub issue""")
 Please verify recruited genomes are all strain of interest""")
     else:
         pass
-    t2 = time.time()
-    elapsed = float(t2)-float(t1)
     #print("-->Getting list of LCBs.."
     allbfiles = glob(os.path.join(blocks_dir, "b*/*"))
     blockfiles = []
@@ -1334,7 +1354,7 @@ Please verify recruited genomes are all strain of interest""")
         pool.close()
         pool.join()
         brkeys = list(bedfile_dict.keys())
-        brkeys.sort() 
+        brkeys.sort()
         for key in brkeys:
             bedfile.write(bedfile_dict[key])
         bedfile.close()
@@ -1347,16 +1367,16 @@ Please verify recruited genomes are all strain of interest""")
     if args.extend_lcbs:
         xmfa_file = f"{outputDir}/parsnp.xmfa"
         with TemporaryDirectory() as temp_directory:
-            original_maf_file = f"{temp_directory}/parsnp-original.maf"
+            original_maf_file = f"{outputDir}/parsnp-original.maf"
             extended_xmfa_file = f"{outputDir}/parsnp-extended.xmfa"
-            fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord, fname_header_to_gcontigidx = ext.get_sequence_data(
+            fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord = ext.get_sequence_data(
                     ref,
-                    finalfiles, 
+                    finalfiles,
                     index_files=False)
-            fname_to_contigid_to_coords = ext.xmfa_to_maf(
-                    xmfa_file, 
-                    original_maf_file, 
-                    fname_contigidx_to_header, 
+            fname_to_contigid_to_coords, fname_header_to_gcontigidx = ext.xmfa_to_maf(
+                    xmfa_file,
+                    original_maf_file,
+                    fname_contigidx_to_header,
                     fname_contigid_to_length)
             packed_write_result = ext.write_intercluster_regions(finalfiles + [ref], temp_directory, fname_to_contigid_to_coords)
             fname_contigid_to_cluster_dir_to_length, fname_contigid_to_cluster_dir_to_adjacent_cluster = packed_write_result
@@ -1375,7 +1395,10 @@ Please verify recruited genomes are all strain of interest""")
                     fname_contigid_to_cluster_dir_to_length,
                     fname_contigid_to_cluster_dir_to_adjacent_cluster,
                     fname_header_to_gcontigidx,
-                    fname_contigid_to_length)
+                    fname_contigid_to_length,
+                    args.extend_ani_cutoff,
+                    args.extend_indel_cutoff,
+                    threads)
             parsnp_output = extended_xmfa_file
             os.remove(original_maf_file)
 
@@ -1424,7 +1447,7 @@ Please verify recruited genomes are all strain of interest""")
                 logger.info("FastTreeMP failed. Trying fasttree...")
                 command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
                 run_command(command)
-                
+
 
 
         #7)reroot to midpoint
@@ -1456,6 +1479,8 @@ Please verify recruited genomes are all strain of interest""")
                 run_command("harvesttools --midpoint-reroot -u -q -i "+outputDir+os.sep+"parsnp.ggr -o "+outputDir+os.sep+"parsnp.ggr -n %s"%(outputDir+os.sep+"parsnp.tree "))
 
 
+    t2 = time.time()
+    elapsed = float(t2)-float(t1)
     if float(elapsed)/float(60.0) > 60:
         logger.info("Aligned %d genomes in %.2f hours"%(totseqs,float(elapsed)/float(3600.0)))
     elif float(elapsed) > 60:
