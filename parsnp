@@ -825,13 +825,12 @@ SETTINGS:
         try:
             record = list(SeqIO.parse(input_file, "fasta"))
             if len(record) == 0:
-                input_files.remove(f)
-                logger.error(f"{f} is an empty file!")
+                input_files.remove(input_file)
+                logger.error(f"{input_file} is an empty file!")
                 continue
-
         except:
-            input_files.remove(f)
-            logger.error(f"Could not parse {f}!")
+            input_files.remove(input_file)
+            logger.error(f"Could not parse {input_file}!")
             continue
 
         ff = open(input_file, 'r')
