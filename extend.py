@@ -16,11 +16,7 @@ from Bio.AlignIO.MafIO import MafWriter, MafIterator
 from Bio.AlignIO.MauveIO import MauveWriter, MauveIterator
 from logger import logger
 import pyabpoa as pa
-import scipy
-from matplotlib import pyplot as plt
 import time
-from tqdm import tqdm
-from pprint import pprint
 #%%
 
 def get_ani_cutoff(sequences, cutoff=0, grace_period=5):
