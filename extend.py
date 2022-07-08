@@ -310,7 +310,7 @@ def write_extended_xmfa(
             cluster_idx = int(msa_record._annotations["pass"])
             (record_matches, record_maxmatches), _ = get_ani_cutoff([record.seq for record in msa_record])
             old_matches, old_max_matches = record_matches + old_matches, record_maxmatches + old_max_matches
-            old_nucs_aligned += sum(len(record.seq) for record in msa_record)
+            old_nucs_aligned += sum(len(str(record.seq).replace("-", "")) for record in msa_record)
             for direction in ("right", "left"):
                 expand_by = clusterdir_expand[(cluster_idx, direction)]
                 flanks = []
@@ -427,7 +427,7 @@ def write_extended_xmfa(
             msa_record.annotations["cluster"] = cluster_idx
             (record_matches, record_maxmatches), _ = get_ani_cutoff([record.seq for record in msa_record])
             new_matches, new_max_matches = record_matches + new_matches, record_maxmatches + new_max_matches
-            new_nucs_aligned += sum(len(record.seq) for record in msa_record)
+            new_nucs_aligned += sum(len(str(record.seq).replace("-", "")) for record in msa_record)
             write_xmfa_cluster(extended_maf_file, [msa_record], fname_header_to_gcontigidx)
             # maf_writer.write_alignment(msa_record)
     total_length = sum(l for l in fname_contigid_to_length.values())
