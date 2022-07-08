@@ -15,7 +15,6 @@ import numpy as np
 from Bio.AlignIO.MafIO import MafWriter, MafIterator
 from Bio.AlignIO.MauveIO import MauveWriter, MauveIterator
 from logger import logger
-import pyabpoa as pa
 import scipy
 from matplotlib import pyplot as plt
 import time
@@ -359,23 +358,20 @@ def write_extended_xmfa(
                 empty_seqs = [i for i in range(len(seqlist)) if seqlist[i] == ""]
                 nonempty_seqs = [s for s in seqlist if s != ""]
                 msa_result_temp = []
-                if minlen < 50:
-                    aligner = pa.msa_aligner()
-                    # time.sleep(.25)
-                    res = aligner.msa(nonempty_seqs, out_cons=False, out_msa=True)
-                    msa_result_temp = res.msa_seq
-                else:
+                if len(nonempty_seqs) > 1:
                     nonempty_seq_file = f"{cluster_directory}/cluster{cluster_idx}_{direction}_nonempty.fa"
                     SeqIO.write(
                         (SeqIO.SeqRecord(Seq(sequence), id=str(seq_idx)) for seq_idx, sequence in enumerate(nonempty_seqs)),
                         nonempty_seq_file,
                         "fasta")
                     subprocess.check_call(
-                        f"muscle -super5 {nonempty_seq_file} -output {nonempty_seq_file}_aligned.fa -threads {cpu_count}", 
+                        f"mafft  --thread {cpu_count} {nonempty_seq_file} > {nonempty_seq_file}_aligned.fa", 
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.STDOUT,
                         shell=True)
                     msa_result_temp = [str(record.seq) for record in SeqIO.parse(f"{nonempty_seq_file}_aligned.fa", "fasta")]
+                else:
+                    msa_result_temp = nonempty_seqs
                 msa_result = []
                 idx = 0
                 for aligned_seq in msa_result_temp:
