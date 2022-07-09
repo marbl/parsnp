@@ -15,7 +15,6 @@ import numpy as np
 from Bio.AlignIO.MafIO import MafWriter, MafIterator
 from Bio.AlignIO.MauveIO import MauveWriter, MauveIterator
 from logger import logger
-import pyabpoa as pa
 import time
 #%%
 
@@ -306,7 +305,7 @@ def write_extended_xmfa(
             cluster_idx = int(msa_record._annotations["pass"])
             (record_matches, record_maxmatches), _ = get_ani_cutoff([record.seq for record in msa_record])
             old_matches, old_max_matches = record_matches + old_matches, record_maxmatches + old_max_matches
-            old_nucs_aligned += sum(len(record.seq) for record in msa_record)
+            old_nucs_aligned += sum(len(str(record.seq).replace("-", "")) for record in msa_record)
             for direction in ("right", "left"):
                 expand_by = clusterdir_expand[(cluster_idx, direction)]
                 flanks = []
@@ -355,23 +354,20 @@ def write_extended_xmfa(
                 empty_seqs = [i for i in range(len(seqlist)) if seqlist[i] == ""]
                 nonempty_seqs = [s for s in seqlist if s != ""]
                 msa_result_temp = []
-                if minlen < 50:
-                    aligner = pa.msa_aligner()
-                    # time.sleep(.25)
-                    res = aligner.msa(nonempty_seqs, out_cons=False, out_msa=True)
-                    msa_result_temp = res.msa_seq
-                else:
+                if len(nonempty_seqs) > 1:
                     nonempty_seq_file = f"{cluster_directory}/cluster{cluster_idx}_{direction}_nonempty.fa"
                     SeqIO.write(
                         (SeqIO.SeqRecord(Seq(sequence), id=str(seq_idx)) for seq_idx, sequence in enumerate(nonempty_seqs)),
                         nonempty_seq_file,
                         "fasta")
                     subprocess.check_call(
-                        f"muscle -super5 {nonempty_seq_file} -output {nonempty_seq_file}_aligned.fa -threads {cpu_count}", 
+                        f"mafft  --thread {cpu_count} {nonempty_seq_file} > {nonempty_seq_file}_aligned.fa", 
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.STDOUT,
                         shell=True)
                     msa_result_temp = [str(record.seq) for record in SeqIO.parse(f"{nonempty_seq_file}_aligned.fa", "fasta")]
+                else:
+                    msa_result_temp = nonempty_seqs
                 msa_result = []
                 idx = 0
                 for aligned_seq in msa_result_temp:
@@ -423,7 +419,7 @@ def write_extended_xmfa(
             msa_record.annotations["cluster"] = cluster_idx
             (record_matches, record_maxmatches), _ = get_ani_cutoff([record.seq for record in msa_record])
             new_matches, new_max_matches = record_matches + new_matches, record_maxmatches + new_max_matches
-            new_nucs_aligned += sum(len(record.seq) for record in msa_record)
+            new_nucs_aligned += sum(len(str(record.seq).replace("-", "")) for record in msa_record)
             write_xmfa_cluster(extended_maf_file, [msa_record], fname_header_to_gcontigidx)
             # maf_writer.write_alignment(msa_record)
     total_length = sum(l for l in fname_contigid_to_length.values())

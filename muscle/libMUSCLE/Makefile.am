@@ -32,7 +32,6 @@ libMUSCLE_3_7_la_SOURCES = $(LIBMUSCLE_SRC)
 libMUSCLE_3_7_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) 
 libMUSCLE_3_7_la_CXXFLAGS= -D_LIB $(AM_CXXFLAGS)
 
-bin_PROGRAMS = muscle 
 
 
 muscle_SOURCES = main.cpp
