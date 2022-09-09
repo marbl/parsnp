@@ -625,6 +625,7 @@ if __name__ == "__main__":
             records = list(SeqIO.parse(f, "fasta"))
         except:
             logger.error("{} is an invalid sequence file!".format(f))
+            continue
         if args.extend_lcbs and len(records) > 1:
             logger.error("Extending LCBs does not currently work with multi-contig inputs yet")
             sys.exit(1)
