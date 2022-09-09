@@ -630,20 +630,24 @@ if __name__ == "__main__":
     if len(input_files) < 2:
         logger.critical("Less than 2 input sequences provided...")
         sys.exit(1)
-    for f in input_files + ([ref] if ref and ref != "!" else []):
-        try:
-            records = list(SeqIO.parse(f, "fasta"))
-        except:
-            logger.error("{} is an invalid sequence file!".format(f))
-            continue
-        if args.extend_lcbs and len(records) > 1:
-            print(f)
-            logger.error("Extending LCBs does not currently work with multi-contig inputs yet")
-            sys.exit(1)
-        for record in records:
-            if any(c not in "GATCRYWSMKHBVDN" + "GATCRYWSMKHBVDN".lower() for c in record.seq):
-                logger.error("Genome sequence {} has invalid characters {}! Skip!".format(f, set(str(record.seq)) - set("AGCTNagctn")))
+    if args.validate_input:
+        bad_files = set()
+        for f in tqdm(input_files + ([ref] if ref and ref != "!" else [])):
+            try:
+                records = list(SeqIO.parse(f, "fasta"))
+            except:
+                logger.error("{} is an invalid sequence file!".format(f))
+                bad_files.add(f)
                 continue
+            if args.extend_lcbs and len(records) > 1:
+                print(f)
+                logger.error("Extending LCBs does not currently work with multi-contig inputs yet")
+                sys.exit(1)
+            for record in records:
+                if any(c not in "GATCRYWSMKHBVDN" + "GATCRYWSMKHBVDN".lower() for c in record.seq):
+                    logger.error("Genome sequence {} has invalid characters {}! Skip!".format(f, set(str(record.seq)) - set("AGCTNagctn")))
+                    bad_files.add(f)
+        input_files = list(set(input_files) - bad_files)
 
     # Parse reference if necessary
     if ref and ref != "!":
