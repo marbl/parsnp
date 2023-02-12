@@ -797,7 +797,7 @@ SETTINGS:
 
 
 
-    if multiprocessing.cpu_count() < threads:
+    if len(os.sched_getaffinity(0)) < threads:
         logger.warning("You have asked to use more threads than you have available on your machine. This may lead to serious performance degredation with RAxML.")
     logger.info("<<Parsnp started>>")
 
