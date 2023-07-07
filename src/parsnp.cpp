@@ -987,28 +987,32 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                             hdr1 = lasthdr1;
                             seqstart = laststart;
                             break;
-                        }
-                        
+                        } 
+                    
                     }
                     if (hit1 && !hit2)
                     {
                         hdr1 =  lasthdr1;
                         seqstart = laststart;
+                        // to make sure single contig gets the first pos
                     }
+                    if (hdr1 == ""){
+                        hdr1 = "s1";
+                    } // Cannot have empty header very hard to parse
                     if ( !ct.mums.at(0).isforward.at(i) )
                     {
-                        xmfafile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                        xmfafile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ ((hdr1=="s1") ? 1 : 0) << endl;
                         if(recomb_filter)
                         {
-                            clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ ((hdr1=="s1") ? 1 : 0) << endl;
                         }
-                    }
+                    } // Tenery added for single contigs
                     else
                     {
-                        xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                        xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ ((hdr1=="s1") ? 1 : 0) << endl;
                         if(recomb_filter)
                         {
-                            clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
+                            clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ ((hdr1=="s1") ? 1 : 0) << endl;
                         }
                     }
                     for( k = 0; k+width < s1s.size();)
@@ -3051,18 +3055,20 @@ int main ( int argc, char* argv[] )
                     file.getline( tmpbuf, 2500 );
                     sstm2.str("");
                     sstm2.clear();
-                    if (ncount+ccount+tcount+acount+gcount < 1000)
-                        continue;
-                    seqcount += 1;
-                    sstm2 << "s" << seqcount;
-                    pos_to_header.at(i)[ncount+ccount+tcount+acount+gcount] = sstm2.str();//header;
-                    contig_intervals[i].push_back(ncount+ccount+tcount+acount+gcount);
-                    
-                    if (i > 0)
+                    // if (ncount+ccount+tcount+acount+gcount < 1000)
+                    //     continue;
+                    // Modified by Victor
+                    if (i > 0) // no padding before first contig
                     {
                         genome.append(d+10,'N');
                         ncount += d+10;
-                    }
+                    }// moved forward by V
+
+                    seqcount += 1;
+                    sstm2 << "s" << seqcount;
+                    pos_to_header.at(i)[ncount+ccount+tcount+acount+gcount] = sstm2.str(); //header
+                    contig_intervals[i].push_back(ncount+ccount+tcount+acount+gcount);
+                    
                     
                     break;
                 case '\t':
