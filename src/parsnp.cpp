@@ -1002,8 +1002,8 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                     {
                         if (i!=0) 
                         {
-                            xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) - 1 + ct.mums.at(0).length << endl;
-                            
+                            xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + ((hdr1 == "s1") ? 1 : 0) + ct.mums.at(0).length << endl;
+                            cout << "hi " << ct.mums.at(0).length << endl;
                         }
                         else 
                         {
