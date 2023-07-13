@@ -988,7 +988,6 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                             seqstart = laststart;
                             break;
                         } 
-                    
                     }
                     if (hit1 && !hit2)
                     {
@@ -1001,7 +1000,15 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                     } // Cannot have empty header very hard to parse
                     if ( !ct.mums.at(0).isforward.at(i) )
                     {
-                        xmfafile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ ((hdr1=="s1") ? 1 : 0) << endl;
+                        if (i!=0) 
+                        {
+                            xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) - 1 + ct.mums.at(0).length << endl;
+                            
+                        }
+                        else 
+                        {
+                            xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + ((hdr1 == "s1") ? 1 : 0) << endl;
+                        }
                         if(recomb_filter)
                         {
                             clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ ((hdr1=="s1") ? 1 : 0) << endl;
