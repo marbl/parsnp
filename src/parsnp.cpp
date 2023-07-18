@@ -998,12 +998,12 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                     if (hdr1 == ""){
                         hdr1 = "s1";
                     } // Cannot have empty header very hard to parse
+                    
                     if ( !ct.mums.at(0).isforward.at(i) )
                     {
                         if (i!=0) 
                         {
                             xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + ((hdr1 == "s1") ? 1 : 0) + ct.mums.at(0).length << endl;
-                            cout << "hi " << ct.mums.at(0).length << endl;
                         }
                         else 
                         {
@@ -2958,6 +2958,7 @@ int main ( int argc, char* argv[] )
         tloc   = 0;
         ncount = 0;
         nloc = 0;
+        int dollarcount = 0;
         
         
         long long counter = 0;
@@ -3007,42 +3008,55 @@ int main ( int argc, char* argv[] )
                         genome.append("T");//84
                     break;
                 case 'X':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'Y':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'S':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'W':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'K':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'H':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'U':
+                    tcount += 1;
                     genome.append("T");
                     break;
                 case 'R':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'M':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'V':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'D':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'B':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case '-':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case '\n':
@@ -3065,16 +3079,15 @@ int main ( int argc, char* argv[] )
                     // if (ncount+ccount+tcount+acount+gcount < 1000)
                     //     continue;
                     // Modified by Victor
-                    if (i > 0) // no padding before first contig
-                    {
+                    if (i!=0) {
                         genome.append(d+10,'N');
                         ncount += d+10;
-                    }// moved forward by V
+                    } // moved forward by V
 
                     seqcount += 1;
                     sstm2 << "s" << seqcount;
-                    pos_to_header.at(i)[ncount+ccount+tcount+acount+gcount] = sstm2.str(); //header
-                    contig_intervals[i].push_back(ncount+ccount+tcount+acount+gcount);
+                    pos_to_header.at(i)[ncount+ccount+tcount+acount+gcount+dollarcount] = sstm2.str(); //header
+                    contig_intervals[i].push_back(ncount+ccount+tcount+acount+gcount+dollarcount);
                     
                     
                     break;
