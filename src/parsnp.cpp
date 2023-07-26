@@ -1000,17 +1000,11 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                     } // Cannot have empty header very hard to parse
                     if ( !ct.mums.at(0).isforward.at(i) )
                     {
-                        if (i!=0) 
-                        {
-                            xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + 1 + ct.mums.at(0).length << endl;
-                        }
-                        else 
-                        {
-                            xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + 1 << endl;
-                        }
+                        xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + 1 + ct.mums.at(0).length << endl;
                         if(recomb_filter)
                         {
-                            clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1<< endl;
+                            
+                            clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + ct.mums.at(0).length << endl;
                         }
                     } // Tenery added for single contigs
                     else
