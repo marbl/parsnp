@@ -995,39 +995,24 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                         hdr1 =  lasthdr1;
                         seqstart = laststart;
                     }
-                    if (i == 0) {
-                        if ( !ct.mums.at(0).isforward.at(i) )
+                    if (hdr1 == ""){
+                        hdr1 = "s1";
+                    } // Cannot have empty header very hard to parse
+                    if ( !ct.mums.at(0).isforward.at(i) )
+                    {
+                        xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + 1 + ct.mums.at(0).length << endl;
+                        if(recomb_filter)
                         {
-                            xmfafile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
-                            if(recomb_filter)
-                            {
-                                clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
-                            }
+                            
+                            clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + ct.mums.at(0).length << endl;
                         }
-                        else
+                    } // Tenery added for single contigs
+                    else
+                    {
+                        xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 << endl;
+                        if(recomb_filter)
                         {
-                            xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
-                            if(recomb_filter)
-                            {
-                                clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
-                            }
-                        }    
-                    } else {
-                        if ( !ct.mums.at(0).isforward.at(i) )
-                        {
-                            xmfafile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 - ((hdr1 == "s1" || hdr1=="") ? 0 : this->d + 10 + 1) + ct.mums.at(0).length << endl;
-                            if(recomb_filter)
-                            {
-                                clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
-                            }
-                        }
-                        else
-                        {
-                            xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 - ((hdr1 == "s1" || hdr1=="") ? 0 : this->d + 10 + 1)  << endl;
-                            if(recomb_filter)
-                            {
-                                clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+1 << endl;
-                            }
+                            clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 << endl;
                         }
                     }
                     for( k = 0; k+width < s1s.size();)
@@ -3015,42 +3000,55 @@ int main ( int argc, char* argv[] )
                         genome.append("T");//84
                     break;
                 case 'X':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'Y':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'S':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'W':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'K':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'H':
+                    ncount += 1;
                     genome.append("N");//
                     break;
                 case 'U':
+                    tcount += 1;
                     genome.append("T");
                     break;
                 case 'R':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'M':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'V':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'D':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case 'B':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case '-':
+                    ncount += 1;
                     genome.append("N");
                     break;
                 case '\n':
@@ -3070,18 +3068,19 @@ int main ( int argc, char* argv[] )
                     file.getline( tmpbuf, 2500 );
                     sstm2.str("");
                     sstm2.clear();
-                    if (ncount+ccount+tcount+acount+gcount < 1000)
-                        continue;
-                    seqcount += 1;
-                    sstm2 << "s" << seqcount;
-                    pos_to_header.at(i)[ncount+ccount+tcount+acount+gcount] = sstm2.str();//header;
-                    contig_intervals[i].push_back(ncount+ccount+tcount+acount+gcount);
-                    
-                    if (i > 0)
-                    {
+                    // if (ncount+ccount+tcount+acount+gcount < 1000)
+                    //     continue;
+                    // Modified by Victor
+                    if (i!=0) {
                         genome.append(d+10,'N');
                         ncount += d+10;
-                    }
+                    } // moved forward by V
+
+                    seqcount += 1;
+                    sstm2 << "s" << seqcount;
+                    pos_to_header.at(i)[ncount+ccount+tcount+acount+gcount] = sstm2.str(); //header
+                    contig_intervals[i].push_back(ncount+ccount+tcount+acount+gcount);
+                    
                     
                     break;
                 case '\t':
