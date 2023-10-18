@@ -946,18 +946,18 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                     
                     if ( ct.mums.at(0).isforward.at(i) )
                     {
-                        xmfafile << ">" << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
+                        xmfafile << "> " << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
                         if (recomb_filter)
                         {
-                            clcbfile << ">" << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
+                            clcbfile << "> " << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
                         }
                     }
                     else
                     {
-                        xmfafile << ">" << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
+                        xmfafile << "> " << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
                         if (recomb_filter)
                         {
-                            clcbfile << ">" << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
+                            clcbfile << "> " << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
                         }
                     }
                     bool hit1 = false;
