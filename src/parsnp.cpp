@@ -946,18 +946,18 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                     
                     if ( ct.mums.at(0).isforward.at(i) )
                     {
-                        xmfafile << ">" << i+1 << ":" << ct.start.at(i) <<  "-" << ct.end.at(i)-1 << " ";
+                        xmfafile << "> " << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
                         if (recomb_filter)
                         {
-                            clcbfile << ">" << i+1 << ":" << ct.start.at(i) <<  "-" << ct.end.at(i)-1 << " ";
+                            clcbfile << "> " << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
                         }
                     }
                     else
                     {
-                        xmfafile << ">" << i+1 << ":" << ct.mums.back().start.at(i) <<  "-" << ct.mums.front().end.at(i)-1 << " ";
+                        xmfafile << "> " << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
                         if (recomb_filter)
                         {
-                            clcbfile << ">" << i+1 << ":" << ct.mums.back().start.at(i) <<  "-" << ct.mums.front().end.at(i)-1 << " ";
+                            clcbfile << "> " << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
                         }
                     }
                     bool hit1 = false;
@@ -995,24 +995,30 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
                         hdr1 =  lasthdr1;
                         seqstart = laststart;
                     }
+                    int offset = 0;
                     if (hdr1 == ""){
                         hdr1 = "s1";
+                        offset = -1;
                     } // Cannot have empty header very hard to parse
+                    else if (hdr1 != "s1") 
+                    {
+                        offset = -1;
+                    }
                     if ( !ct.mums.at(0).isforward.at(i) )
                     {
-                        xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + 1 + ct.mums.at(0).length << endl;
+                        xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + 1 + ct.mums.at(0).length + offset << endl;
                         if(recomb_filter)
                         {
                             
-                            clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + ct.mums.at(0).length << endl;
+                            clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + ct.mums.at(0).length + offset << endl;
                         }
                     } // Tenery added for single contigs
                     else
                     {
-                        xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 << endl;
+                        xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + offset << endl;
                         if(recomb_filter)
                         {
-                            clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 << endl;
+                            clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + offset << endl;
                         }
                     }
                     for( k = 0; k+width < s1s.size();)
