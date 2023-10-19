@@ -870,20 +870,18 @@ SETTINGS:
             continue
         sizediff = float(reflen)/float(seqlen)
 
-        # EDITED THIS TO CHANGE GENOME THRESHOLD
-        # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
         if curated:
             log_f = logger.warning
             msg = ""
         else:
             log_f = logger.error
             msg = "Skipping..."
-        if sizediff <= 0.6:
+        if sizediff <= 0.8:
             log_f("File {} is {:.2f}x longer than reference! {}".format(
                 input_file, 1/sizediff, msg))
             if not curated:
                 continue
-        elif sizediff >= 1.4:
+        elif sizediff >= 1.2:
             log_f("File {} is {:.2f}x shorter than reference genome! {}".format(
                 input_file, sizediff, msg))
             if not curated:
