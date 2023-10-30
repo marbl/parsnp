@@ -16,6 +16,8 @@ import inspect
 from multiprocessing import *
 from Bio import SeqIO
 from glob import glob
+from pathlib import Path
+
 
 import extend as ext
 
@@ -276,7 +278,7 @@ def parse_args():
         type = str,
         nargs = '+',
         required = True,
-        help = "A list of files containing genomes/contigs/scaffolds")
+        help = "A list of files containing genomes/contigs/scaffolds. If the file ends in .txt, each line in the file corresponds to the path to an input file.")
     input_output_args.add_argument(
         "-r",
         "--reference",
@@ -623,7 +625,19 @@ if __name__ == "__main__":
                 if os.path.isfile(f):
                     input_files_processed.append(f)
         elif os.path.isfile(input_f):
-            input_files_processed.append(input_f)
+            if Path(input_f).suffix == ".txt":
+                with open(input_f) as seq_list:
+                    for line in seq_list:
+                        input_f = line.strip()
+                        if os.path.isdir(input_f):
+                            for f in os.listdir(input_f):
+                                f = os.path.join(input_f, f)
+                                if os.path.isfile(f):
+                                    input_files_processed.append(f)
+                        else:
+                            input_files_processed.append(input_f)
+            else:
+                input_files_processed.append(input_f)
         else:
             logger.error("{} is not a valid file".format(input_f))
     input_files = input_files_processed
@@ -856,20 +870,18 @@ SETTINGS:
             continue
         sizediff = float(reflen)/float(seqlen)
 
-        # EDITED THIS TO CHANGE GENOME THRESHOLD
-        # WILL NOW CONSIDER CONCATENATED GENOMES THAT ARE MUCH BIGGER THAN THE REFERENCE
         if curated:
             log_f = logger.warning
             msg = ""
         else:
             log_f = logger.error
             msg = "Skipping..."
-        if sizediff <= 0.6:
+        if sizediff <= 0.8:
             log_f("File {} is {:.2f}x longer than reference! {}".format(
                 input_file, 1/sizediff, msg))
             if not curated:
                 continue
-        elif sizediff >= 1.4:
+        elif sizediff >= 1.2:
             log_f("File {} is {:.2f}x shorter than reference genome! {}".format(
                 input_file, sizediff, msg))
             if not curated:
@@ -1081,7 +1093,7 @@ SETTINGS:
                         ani_ref = max(genome_to_genomes, key=(lambda key: len(genome_to_genomes[key])))
                         if autopick_ref:
                             auto_ref = ani_ref
-                        finalfiles = list(genome_to_genomes[ani_ref])
+                        finalfiles = [f for f in fnafiles if f in genome_to_genomes[ani_ref]]
 
                 # shutil.rmtree(tmp_dir)
             except subprocess.CalledProcessError as e:
