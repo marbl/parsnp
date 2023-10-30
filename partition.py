@@ -29,72 +29,13 @@ FASTA_SUFFIX_LIST = ".fasta, .fas, .fa, .fna, .ffn, .faa, .mpfa, .frn".split(", 
 CHUNK_PREFIX = "chunk"
 
 
-def validate_xmfa(xmfa_file, parsnp_header=False, gid_to_records=None, gid_to_cid_to_index=None, input_dir):
-    """
-    Validate records in xmfa file
-    """
-    print(f"Validating {xmfa_file}")
-    seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)')
-    
-    index_to_gid, gid_to_index = parse_xmfa_header(xmfa_file)
-    if gid_to_cid_to_index is None or gid_to_records is None:
-        gid_to_records, gid_to_cid_to_index = index_input_sequences(xmfa_file, input_dir)
-    for lcb in tqdm((AlignIO.parse(xmfa_file , "mauve"))):
-        for seq in lcb:
-            if parsnp_header:
-                aln_len = seq.annotations["end"] - seq.annotations["start"] + 1
-                # if " :p" in seq.id:
-                #     seq.id = seq.id.replace(" :p", " s1:p")
-                #     offset = 1
-                #     print(seq.id)
-                # else:
-                #     offset = 0
-                try:
-                    cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(seq.id).groups()]
-                except:
-                    print(seq.id)
-
-                gid = index_to_gid[seq.name]
-                cid = gid_to_cid_to_index[gid][contig_idx]
-
-                if seq.annotations["strand"] == -1:
-                    startpos, endpos = startpos - aln_len, startpos
-                else:
-                    endpos = startpos + aln_len
-            else:
-                startpos, endpos, strand = seq.annotations["start"], seq.annotations["end"], seq.annotations["strand"]
-                aln_len = endpos - startpos
-                gid, cid = seq.id.split("#")
-            # assert endpos - startpos == len(seq.seq)
-            true_str = gid_to_records[gid][cid].seq[startpos:endpos].lower()
-            if seq.annotations["strand"] == -1:
-                true_str = true_str.reverse_complement()
-
-            true_str = "".join(x if x in "actg" else "n" for x in str(true_str).lower())
-            aln_str = "".join(x if x in "actg" else "n" for x in str(seq.seq).lower().replace("-", ""))
-            if len(true_str) != len(aln_str) or true_str.lower()[:5] != aln_str[:5]:
-                print(startpos, endpos)
-                print(seq.name)
-                print(seq.id)
-                print(seq.annotations)
-                print(gid, cid, seq.annotations["strand"])
-                print(len(seq.seq.replace("-", "")), aln_len)
-                print(true_str[:10], true_str[-10:])
-                print(seq.seq.replace("-", "")[:10].lower(), seq.seq.replace("-", "")[-10:].lower())
-                print("expected str", true_str)
-                print("record str  ", seq.seq.replace("-", "").lower())
-                print(seq.seq)
-                print()
-                print()
-                # raise
-        
-
 def getIntersection(interval_1, interval_2):
     start = max(interval_1[0], interval_2[0])
     end = min(interval_1[1], interval_2[1])
     if start < end:
         return (start, end)
     return None
+
 
 def intersect(intervals1, intervals2):
     if len(intervals1) == 0 or len(intervals2) == 0:
@@ -147,17 +88,31 @@ def get_interval(lcb, seqidx):
         
 
 def cut_overlaps(ilist):
+    """
+    If two intervals overlap, I1 = (a, b), I2 = (b-10, c)
+    then trim the second interval to be (b+1, c)
+    """
     for i in range(len(ilist) - 1):
-        if ilist[i][1] - 1 >= ilist[i+1][0]:
-            ilist[i+1] = (ilist[i][1], ilist[i+1][1])
+        if ilist[i][1] >= ilist[i+1][0]:
+            ilist[i+1] = (ilist[i][1]+1, ilist[i+1][1])
+
 
 def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
+    """
+    lcb : MultipleSeqAlignment
+    ref_cidx_to_intervals : {reference_contig_idx : [(start1, end1), ..., (startn, endn)]}
+    seqidx : The index of the reference sequence in the Parsnp XMFA header (typically 1)
+    cluster_start : The index of the first output cluster in the trimmed alignment
+    """
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)')
     ret_lcbs = []
+    # Store a copy of the SeqRecord objects w/ the correct name, id, annotation dict etc
     empty_seqs = [
         SeqRecord(Seq(""), id=rec.id, name=rec.name, description=rec.description, annotations=copy.deepcopy(rec.annotations))
         for rec in lcb
     ]
+
+    # Look for the record in the LCB that represents the reference genome
     for rec in lcb:
         if int(rec.name) == seqidx:
             aln_len = rec.annotations["end"] - rec.annotations["start"] + 1
@@ -169,14 +124,17 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
                 super_endpos = super_startpos + aln_len
                 
             try:
+                # super_startpos and super_endpos represent the start and endpoint of this 
+                # LCB in the reference. This LCB may be trimmed into multiple LCBs, each of 
+                # which is represented by one of the trimmed_intervals
                 trimmed_intervals = list(intersect(ref_cidx_to_intervals[contig_idx], [(super_startpos, super_endpos)]))
-                assert(all(interval in ref_cidx_to_intervals[contig_idx] for interval in trimmed_intervals))
+                # assert(all(interval in ref_cidx_to_intervals[contig_idx] for interval in trimmed_intervals))
                 ref_rec = rec
-            except:
+            except Exception as e:
                 print(trimmed_intervals)
                 print((super_startpos, super_endpos))
                 print(ref_cidx_to_intervals[contig_idx])
-                raise
+                raise e
             break
     else:
         print("Interval not found!")
@@ -194,7 +152,9 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
     for i in range(1, len(ref_rec.seq)+1):
         ref_ssum[i] = ref_ssum[i-1] + (0 if ref_rec.seq[-i] == '-' else 1)
     
+    # lcb_psum[j][i] = number of nucleotides in first i columns of the jth sequence 
     lcb_psum = [[0]*(len(ref_rec.seq) + 1) for _ in range(len(lcb))]
+    # lcb_ssum[j][i] = number of nucleotides in last i columns of the jth sequence 
     lcb_ssum = [[0]*(len(ref_rec.seq) + 1) for _ in range(len(lcb))]
     
     for rec_idx, rec in enumerate(lcb):
@@ -249,6 +209,9 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
 
 
 def copy_header(orig_xmfa, new_xmfa):
+    """
+    Copy header from orig_xmfa to new_xmfa
+    """
     with open(orig_xmfa) as xmfa_in, open(new_xmfa, 'w') as xmfa_out:
         for line in xmfa_in:
             if line[0] == "#":
@@ -258,6 +221,11 @@ def copy_header(orig_xmfa, new_xmfa):
 
 
 def write_lcb(lcb, out_handle):
+    """
+    Write the LCB in XMFA format to the output handle.
+
+    lcb : MultipleSeqAlignment
+    """
     LINESIZE = 80
     for rec in lcb:
         header = f"> {rec.name}:{rec.annotations['start']+1}-{rec.annotations['end']} {'+' if rec.annotations['strand'] == 1 else '-'} {rec.id}\n"
@@ -269,6 +237,9 @@ def write_lcb(lcb, out_handle):
 
 
 def combine_header_info(xmfa_list):
+    """
+    Combine the headers of multiple partitioned parsnp outputs. 
+    """
     SequenceEntry = namedtuple("SequenceEntry", "index file header length")
     fidx_to_new_idx = {}
     seq_to_idx = {}
@@ -336,7 +307,7 @@ def merge_blocks(aln_xmfa_pairs, fidx_to_new_idx):
     name_to_idx = {}
     xmfa_file_to_col = {}
     for seq in aln[:-1]:
-        # This copies the string as well, but we could do it faster by just copying the seq metadat
+        # This copies the string as well, but we could do it faster by just copying the seq metadata
         new_seq = copy.deepcopy(seq)
         new_seq.name = fidx_to_new_idx[(xmfa_file, int(seq.name))]
         new_seq.id = new_seq.id.split("/")[0]
@@ -366,6 +337,7 @@ def merge_blocks(aln_xmfa_pairs, fidx_to_new_idx):
             col = xmfa_file_to_col[xmfa_file]
             if col >= len(aln[0].seq) or aln[0].seq[col] == "-":
                 in_gap = True
+            # If any file has remaining base pairs, we are not done
             if col < len(aln[0].seq):
                 all_done = False
                 
