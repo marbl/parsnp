@@ -1,38 +1,28 @@
 import argparse
 import subprocess
+import re
+import bisect
+import tempfile
+import os
+import copy
+import math
 from multiprocessing import Pool
 from functools import partial
-import tempfile
+from glob import glob
+from itertools import product, combinations
+from pathlib import Path
+from collections import namedtuple, defaultdict, Counter
 
-from pprint import pprint
-
+import numpy as np
+import spoa
 from Bio import AlignIO, SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from glob import glob
-from matplotlib import pyplot as plt
-import tempfile
-from pathlib import Path
-import re
-import bisect
-import subprocess
-from collections import namedtuple, defaultdict, Counter
-import os
 from Bio.Align import substitution_matrices
-from itertools import product, combinations
-import numpy as np
-# from Bio.AlignIO.MafIO import MafWriter, MafIterator
-# from Bio.AlignIO.MauveIO import MauveWriter, MauveIterator
-from logger import logger
-import time
-import copy
 from tqdm import tqdm
-import pyabpoa as pa
-import spoa
-from intervaltree import IntervalTree
-from scipy import stats
-import math
+
+# from logger import logger
 
 
 FASTA_SUFFIX_LIST = ".fasta, .fas, .fa, .fna, .ffn, .faa, .mpfa, .frn".split(", ")
