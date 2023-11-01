@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # See the LICENSE file included with this software for license information.
 
+'''
+
+'''
+
 import os, sys, string, getopt, random,subprocess, time,operator, math, datetime,numpy #pysam
 from collections import defaultdict
 import csv
@@ -59,6 +63,7 @@ try:
 except KeyError:
     os.environ["PYTHONPATH"] = PARSNP_DIR + os.pathsep
 
+
 frozenbinary = True
 application_path = ""
 if getattr(sys, 'frozen', False):
@@ -66,6 +71,7 @@ if getattr(sys, 'frozen', False):
 elif __file__:
     application_path = os.path.dirname(__file__)
     frozenbinary = False
+
 
 if frozenbinary:
    utilPath = PARSNP_DIR
@@ -525,8 +531,509 @@ def parse_args():
 ####################################################################################################
 #print("-g = <bool>: auto-launch (g)ingr? (default = NO)"
 
+def parse_genbank_files(cmd_args, output_dir):
+    '''
+    Single method to do the genbank file parsing from the main control flow.
 
+    This was extracted from a big blob of code in the old version that did a bunch of genbank parsing. Because the
+    old code was sitting in the if __name__=='__main__': loop, rather than pass anything in as arguments the function
+    starts with this big 'global' command, which has been refined somewhat. Currently 'genbank_file' is used in one
+    spot later in the code it is still considered a global variable here.
+
+    Args:
+        cmd_args (namespace): command-line arguments returned from the parse_args() function.
+
+    Returns:
+        genbank_ref (str):  path to the genbank reference .fna file located in the 'tmp' subfolder of the output
+                            directory.
+    '''
+    # global genbank_files, f, genbank_file, genbank_ref, rf, line, e
+    global genbank_file
+    genbank_ref = ""
+
+    # 1) Make a list of the genbank files:
+    genbank_files = cmd_args.genbank
+    genbank_files_processed = []
+    for genbank_f in genbank_files:
+        if os.path.isdir(genbank_f):
+            for f in os.listdir(genbank_f):
+                f = os.path.join(genbank_f, f)
+                if os.path.isfile(f):
+                    genbank_files_processed.append(f)
+        elif os.path.isfile(genbank_f):
+            genbank_files_processed.append(genbank_f)
+        else:
+            logger.error("{} is not a valid file".format(genbank_f))
+    genbank_files = genbank_files_processed
+
+    # 2) If there aren't any files then exit the whole command:
+    if len(genbank_files) == 0:
+        logger.critical("No valid genbank files provided...")
+        sys.exit(1)
+    ctcmd = "cat "
+    first = True
+    # genbank_ref = ""
+
+    # 3) Todd's original .gb file parser. Should probably be replaced by the biopython parser at some point.
+    for genbank_file in genbank_files:
+        if len(genbank_file) <= 1:
+            continue
+        ctcmd += genbank_file + " "
+        genbank_ref = os.path.join(output_dir, "tmp", os.path.basename(genbank_file) + ".fna")
+        try:
+            # parse out reference, starts at ORIGIN ends at //, remove numbers,
+            rf = open(genbank_file, 'r')
+            genbank_ref_d = open(genbank_ref, "a+")
+            while True:
+                giline = rf.readline()
+                if "VERSION" and "GI" in giline:
+                    break
+                elif giline == None or giline == "":
+                    logger.critical("Genbank file %s malformatted \n" % (genbank_file))
+                    sys.exit(1)
+            if len(giline) <= 2:
+                logger.critical("Genbank file %s malformatted \n" % (genbank_file))
+                sys.exit(1)
+            genbank_ref_d.write(">gi|" + giline.split("GI:")[-1])
+            first = False
+            ntdata = False
+            data = ""
+            for line in rf:
+                if ntdata:
+                    if "//" in line:
+                        ntdata = False
+                        break
+                    data += line[9:].replace(" ", "")
+                if "ORIGIN" in line:
+                    ntdata = True
+
+            rf.close()
+            if len(data) < 10:
+                logger.critical("Genbank file %s contains no sequence data\n" % (genbank_file))
+                sys.exit(1)
+            genbank_ref_d.write(data.upper())
+            genbank_ref_d.close()
+        except IOError as e:
+            logger.critical("Genbank file %s not found\n" % (genbank_file))
+            sys.exit(1)
+
+    return genbank_ref, genbank_files
+
+
+def check_for_dependencies(use_fasttree):
+    '''
+    Routine to check for the main dependencies for parsnp and exits the program if one is missing.
+
+    That includes 1) Profile, 2) Raxml, 3) harvesttools, and if the use_fasttree argument has been
+    given it also includes one of the main FastTree executables.
+    '''
+    missing = False
+    # Has to have ALL of these:
+    for exe in ["Profile", "raxmlHPC-PTHREADS", "harvesttools"]:
+        if shutil.which(exe) is None:
+            missing = True
+            logger.critical("{} not in system path!".format(exe))
+    if use_fasttree:
+        has_fasttree = False
+        # has to have AT LEAST one of these
+        for exe in ["fasttree", "FastTree", "FastTreeMP"]:
+            if shutil.which(exe) is not None:
+                has_fasttree = True
+        if not has_fasttree:
+            logger.critical("No fasttree executable found in system path!".format(exe))
+        missing = missing or (not has_fasttree)
+    if missing:
+        sys.exit(1)
+
+
+def create_output_directory(output_dir):
+    '''
+    Function to make the output directory and the 'tmp' subdirectory based on the command-line arguments.
+
+    Args:
+        output_dir (str): string representing the output folder specified at the command line.
+
+    Returns:
+
+    '''
+    if output_dir == "." or output_dir == "./" or output_dir == "/":
+        logger.critical("Specified output dir is current working dir or root dir! will clobber any parsnp.* results")
+        sys.exit(1)
+    elif output_dir == "[P_CURRDATE_CURRTIME]":
+        today = datetime.datetime.now()
+        timestamp = "P_" + today.isoformat().replace("-", "_").replace(".", "").replace(":", "").replace("T", "_")
+        output_dir = os.getcwd() + os.sep + timestamp
+    os.makedirs(output_dir, exist_ok=True)
+    shutil.rmtree(os.path.join(output_dir, "tmp"), ignore_errors=True)
+    os.makedirs(os.path.join(output_dir, "tmp"), exist_ok=True)
+
+
+def process_input_files(cmd_args, input_files):
+    '''
+    Takes the string for the input files given at the command-line (i.e. the 'sequences' or '-d' argument)
+    and checks it for the various options to be turned into a list of actual fasta files representing each
+    of the input alignments.
+
+    There are really three ways to provide the list of sequence files at the command line. The first is
+    to just give the list of files as a space-delimited list following the '-d' flag, although this can be
+    a real pain if the list is more than just a couple. The second is to put all the files in a single folder
+    and just provide the path to the folder after the '-d' flag. The third is to provide a '.txt' file
+    containing a line-separated list of file paths for the sequences.
+
+    So this function takes the value of args.sequences (i.e., the argument 'input_files') and does some checks
+    on it, keeping a list of final input file paths to use.
+        1) If it is a valid directory, add every folder in it to the final file list.
+        2) Otherwise, if it is a valid file and the filename ends in '.txt', add each line of the file
+            to the final file list.
+        3) Otherwise, just add 'input_files' itself to the final file list, assuming that if the user provides
+            a space-separated list at the commadn line then that will be in the correct 'list' form to pass
+            along without converting.
+
+    Args:
+        cmd_args:
+        input_files:
+
+    Returns:
+
+    '''
+    # global input_files
+    input_files_processed = []
+    for input_f in input_files:
+        # if it is a folder, add all the files in it to the list...
+        if os.path.isdir(input_f):
+            for f in os.listdir(input_f):
+                f = os.path.join(input_f, f)
+                if os.path.isfile(f):
+                    input_files_processed.append(f)
+        # ...otherwise if it's a text file then do a bunch of stuff to it, if not just add it to the list.
+        elif os.path.isfile(input_f):
+            # We now have the option to pass a text file which line-separated list of files (or directories):
+            if Path(input_f).suffix == ".txt":
+                with open(input_f) as seq_list:
+                    for line in seq_list:
+                        input_f = line.strip()
+                        if os.path.isdir(input_f):
+                            for f in os.listdir(input_f):
+                                f = os.path.join(input_f, f)
+                                if os.path.isfile(f):
+                                    input_files_processed.append(f)
+                        else:
+                            input_files_processed.append(input_f)
+            else:
+                input_files_processed.append(input_f)
+        else:
+            logger.error("{} is not a valid file".format(input_f))
+    input_files = input_files_processed
+    if len(input_files) < 2:
+        logger.critical("Less than 2 input sequences provided...")
+        sys.exit(1)
+    # ...Step to validate the input if that argument is specified:
+    if cmd_args.validate_input:
+        bad_files = set()
+        # TODO: import tqdm somewhere
+        for f in tqdm(input_files + ([ref] if ref and ref != "!" else [])):
+            try:
+                records = list(SeqIO.parse(f, "fasta"))
+            except:
+                logger.error("{} is an invalid sequence file!".format(f))
+                bad_files.add(f)
+                continue
+            if cmd_args.extend_lcbs and len(records) > 1:
+                print(f)
+                logger.error("Extending LCBs does not currently work with multi-contig inputs yet")
+                sys.exit(1)
+            for record in records:
+                if any(c not in "GATCRYWSMKHBVDN" + "GATCRYWSMKHBVDN".lower() for c in record.seq):
+                    logger.error("Genome sequence {} has invalid characters {}! Skip!".format(f, set(str(
+                        record.seq)) - set("AGCTNagctn")))
+                    bad_files.add(f)
+        input_files = list(set(input_files) - bad_files)
+
+    return input_files
+
+def parse_reference_file(ref):
+    '''
+    If a specific reference file is given (i.e. **NOT** a genbank reference file, one that is passe in with
+    '-r' rather than '-g'), goes through and parses it.
+
+    Args:
+        ref:    (assigned directly from args in the main loop)
+
+    Returns:
+
+    '''
+    # global multifasta, seq, e
+    multifasta = False
+    if ref and ref != "!":
+        try:
+            rf = open(ref, 'r')
+            rfd = rf.read()
+            refseqs = rfd.split(">")[1:]
+            currpos = 0
+            if len(refseqs) > 1:
+                multifasta = True
+                for seqnum, seq in enumerate(refseqs):
+                    seq = seq.split('\n', 1)[1]
+                    fastalen = len(seq) - seq.count('\n')
+                    ref_seqs[currpos + fastalen] = seqnum
+                    currpos += fastalen
+            rf.close()
+        except IOError as e:
+            logger.critical(" Reference genome file %s not found\n" % (ref))
+            sys.exit(1)
+
+    return multifasta, ref_seqs
+
+
+def make_genome_and_reference_output_strings(ref, genbank_files):
+    '''
+    Assembles the strings for the console output saying which genome input files and which
+    reference file are being used for this run.
+
+    Args:
+        ref:            (assigned directly from args in the main loop)
+        genbank_files:  (assigned directly from args in the main loop)
+
+    Returns:
+
+    '''
+    # global sortem, ref_string, genome_string, ref
+    sortem = True
+    ref_string = ref
+    genome_string = ""
+    if len(input_files) > 1:
+        genome_string = "\n\t"
+        if len(input_files) > 4:
+            genome_string += "\n\t".join(input_files[:2])
+            genome_string += "\n\t...{} more file(s)...\n\t".format(len(input_files) - 4)
+            genome_string += "\n\t".join(input_files[-2:])
+        else:
+            genome_string += "\n\t".join(input_files)
+    else:
+        genome_string = input_files[0]
+    if len(ref) == 0 and len(genbank_ref) != 0:
+        # we are parsing from genbank, set ref to genbank_ref && turn off sorting
+        ref = genbank_ref
+        if len(genbank_files) > 1:
+            ref_string = "\n\t"
+            if len(genbank_files) > 4:
+                ref_string += "\n\t".join(genbank_files[:2])
+                ref_string += "\n\t...{} more file(s)...\n\t".format(len(genbank_files) - 4)
+                ref_string += "\n\t".join(genbank_files[-2:])
+            else:
+                ref_string = "\n\t".join(genbank_files)
+        else:
+            ref_string += genbank_files[0]
+
+        sortem = False
+
+    return sortem, ref_string, genome_string, ref
+
+
+def check_ref_genome_aligned(ref):
+    # global ff, hdr, seq, line, reflen
+    with open(ref, 'r') as ff:
+        hdr = ff.readline()
+        seq = ff.read()
+        if hdr[0] != ">":
+            logger.critical("Reference {} has improperly formatted header.".format(ref))
+            sys.exit(1)
+        for line in seq.split('\n'):
+            if '-' in line and line[0] != ">":
+                logger.warning("Reference genome sequence %s has '-' in the sequence!" % ((ref)))
+        reflen = len(seq) - seq.count('\n')
+
+    return reflen
+
+
+def parse_input_files(input_files, curated):
+    '''
+    Goes through and actually parses all the input files as fasta's and makes sure they don't raise any
+    errors that way. Also calculates the total genome length and uses that to determine if any of them
+    should be outright ignored because the length is too much different from the reference.
+
+    Args:
+        input_files (list of str):  list of file paths
+        curated (bool):             if true, includes everything regardless of length (i.e., the input is
+                                    "curated" already).
+
+    Returns:
+
+    '''
+    # global ff, hdr, seq
+    fnafiles = []
+    for input_file in input_files[:]:
+        # If biopython cannot parse the input as a fasta, kick it out of the list and move on:
+        try:
+            record = list(SeqIO.parse(input_file, "fasta"))
+            if len(record) == 0:
+                input_files.remove(input_file)
+                logger.error(f"{input_file} is an empty file!")
+                continue
+        except:
+            input_files.remove(input_file)
+            logger.error(f"Could not parse {input_file}!")
+            continue
+
+        # Old version of the parser:
+        with open(input_file, 'r') as ff:
+            hdr = ff.readline()
+            seq = ff.read()
+            name_flag = True
+            seqlen = len(seq) - seq.count('\n')
+            if hdr[0] != ">":
+                logger.error("{} has improperly formatted header. Skip!".format(input_file))
+                continue
+            elif '-' in seq:
+                seq = seq.split('\n')
+                if any('-' in l and ('>' not in l) for l in seq):
+                    logger.error("Genome sequence %s seems to be aligned! Skip!" % ((input_file)))
+                    continue
+            elif seqlen <= 20:
+                logger.error("File %s is less than or equal to 20bp in length. Skip!" % (input_file))
+                continue
+            sizediff = float(reflen) / float(seqlen)
+
+            # Argument for ignoring any issues with the input/references:
+            if curated:
+                log_f = logger.warning
+                msg = ""
+            else:
+                log_f = logger.error
+                msg = "Skipping..."
+            if sizediff <= 0.8:
+                log_f("File {} is {:.2f}x longer than reference! {}".format(
+                    input_file, 1 / sizediff, msg))
+                if not curated:
+                    continue
+            elif sizediff >= 1.2:
+                log_f("File {} is {:.2f}x shorter than reference genome! {}".format(
+                    input_file, sizediff, msg))
+                if not curated:
+                    continue
+            fnafiles.append(input_file)
+            fnaf_sizes[input_file] = seqlen
+
+    return input_files, fnafiles, fnaf_sizes
+
+
+def write_inifile_1(args, ref, aligner, xtrafast, output_dir, fastmum, reflen, fnafiles, threads):
+    '''
+    Writes the first .ini file. Starts with 'template.ini' in the parsnp folder and replaces various
+    values in it, then writes the output to 'all_mumi.ini' in the output folder (which is eventually
+    deleted at the end of the program).
+
+    Most of these args are pulled directly from the command-line arguments, although a copy of that
+    is passed in directly.
+
+    Args:
+        args (namespace):   should be a copy of the command-line 'args' variable from parse-args.
+        ref:                (assigned directly from args in the main loop)
+        aligner:            (assigned directly from args in the main loop)
+        xtrafast:           (assigned directly from args in the main loop)
+        output_dir:         (assigned directly from args in the main loop)
+        fastmum:            (assigned directly from args in the main loop)
+        reflen:             (assigned directly from args in the main loop)
+        fnafiles:           (assigned directly from args in the main loop)
+        threads:            (assigned directly from args in the main loop)
+
+    Returns:
+
+    '''
+    # global extend, inifiled, file_string, cnt
+    logger.debug("Writing .ini file")
+    if xtrafast or 1:
+        args.extend = False
+    inifiled = open("%s/template.ini" % (PARSNP_DIR), 'r').read()
+    inifiled = inifiled.replace("$REF", ref)
+    inifiled = inifiled.replace("$EXTEND", "%d" % (args.extend))
+    inifiled = inifiled.replace("$ANCHORS", str(args.min_anchor_length))
+    inifiled = inifiled.replace("$MUMS", str(args.mum_length))
+    inifiled = inifiled.replace("$MINCLUSTER", str(args.min_cluster_size))
+    inifiled = inifiled.replace("$CLUSTERD", str(args.max_cluster_d))
+    inifiled = inifiled.replace("$THREADS", str(threads))
+    inifiled = inifiled.replace("$ALIGNER", str(aligner))
+    inifiled = inifiled.replace("$DIAGDIFF", str(args.max_diagonal_difference))
+    inifiled = inifiled.replace("$RECOMBFILT", "%d" % (xtrafast))
+    inifiled = inifiled.replace("$OUTDIR", output_dir)
+    if fastmum:
+        inifiled = inifiled.replace("$PARTPOS", "%d" % (0.2 * reflen))
+    else:
+        inifiled = inifiled.replace("$PARTPOS", "%s" % (args.max_partition_size))
+    file_string = ""
+    for cnt, fna_file in enumerate(fnafiles, 1):
+        file_string += "file%d=%s\n" % (cnt, fna_file)
+        file_string += "reverse%d=0\n" % (cnt)
+    inifiled_mumi = inifiled.replace("$FILES\n", file_string)
+    inifiled_mumi = inifiled_mumi.replace("calcmumi=0", "calcmumi=1")
+    inifile_mumi = open(os.path.join(output_dir, "all_mumi.ini"), 'w')
+    inifile_mumi.write(inifiled_mumi)
+    inifile_mumi.close()
+
+    return inifiled
+
+
+def write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, finalfiles, ref):
+    '''
+    Writes the second .ini file ('parsnpAligner.ini' and 'psnn.ini') using part of the previous one as a
+    starting point.
+
+    Args:
+        inifiled:           Copy of the previous .ini file text string (output by write_inifile_1(...))
+        outputDir:          (assigned directly from args in the main loop)
+        unaligned:          (assigned directly from args in the main loop)
+        args (namespace):   should be a copy of the command-line 'args' variable from parse-args.
+        auto_ref:           (assigned directly from args in the main loop)
+        query:              (assigned directly from args in the main loop)
+        finalfiles:         copy of the final file set to align from other code in the main loop.
+        ref:                (assigned directly from args in the main loop)
+
+    Returns:
+
+    '''
+    # global file_string, cnt, f, inifiled_closest, inifile
+
+    if len(finalfiles) < 1 or ref == "":
+        logger.critical("Parsnp requires 2 or more genomes to run, exiting\n")
+        sys.exit(1)
+    file_string = ""
+    cnt = 1
+    file_string_closest = ""
+    # TODO whats the point of iterating over one file?
+    for cnt, f in enumerate(finalfiles[0:1], 1):
+        file_string_closest += "file%d=%s\n" % (cnt, f)
+        file_string_closest += "reverse%d=0\n" % (cnt)
+    for cnt, f in enumerate(finalfiles, 1):
+        file_string += "file%d=%s\n" % (cnt, f)
+        file_string += "reverse%d=0\n" % (cnt)
+    inifiled = inifiled.replace("$FILES\n", file_string)
+    # new, output unaligned regions
+    inifiled = inifiled.replace("$UNALIGNED", unaligned)
+    inifiled_closest = inifiled.replace("$FILES\n", file_string_closest)
+    if fastmum:
+        inifiled = inifiled.replace("p=%d" % (0.2 * reflen), "p=%s" % (args.max_partition_size))
+        inifiled_closest = inifiled.replace("p=%d" % (0.2 * reflen), "p=%s" % (args.max_partition_size))
+    if autopick_ref:
+        inifiled = inifiled.replace(orig_auto_ref, auto_ref)
+        inifiled = inifiled.replace(auto_ref, "tmp_" + auto_ref)
+        inifiled = inifiled.replace(query, auto_ref)
+        inifiled = inifiled.replace("tmp_" + auto_ref, query)
+        inifiled_closest = inifiled_closest.replace(auto_ref, "tmp_" + auto_ref)
+        inifiled_closest = inifiled_closest.replace(query, auto_ref)
+        inifiled_closest = inifiled_closest.replace("tmp_" + auto_ref, query)
+    inifile = open(outputDir + os.sep + "parsnpAligner.ini", 'w')
+    inifile.write(inifiled)
+    inifile.close()
+    inifile_closest = open(outputDir + os.sep + "psnn.ini", 'w')
+    inifile_closest.write(inifiled_closest)
+    inifile_closest.close()
+
+
+
+#   Most of the control flow for the whole Parnsp program runs through this script, which is probably not an
+#   awesome design pattern.
 if __name__ == "__main__":
+    # 1) Initialize some variables and parse command-line args:
     t1 = time.time()
     logger.info(f"|--Parsnp {VERSION}--|\n")
 
@@ -547,7 +1054,7 @@ if __name__ == "__main__":
         randomly_selected_ref = True
     input_files = args.sequences
     query = args.query
-    anchor = args.min_anchor_length
+    # anchor = args.min_anchor_length   # (using args directly)
     #TODO I'm guessing mummer_mumi was intended to be an option?
     # use_mummer_mumi = args.use_mummer_mumi
     use_mummer_mumi = False
@@ -555,18 +1062,18 @@ if __name__ == "__main__":
     use_mash = args.use_mash
     use_fasttree = args.use_fasttree
     use_parsnp_mumi = not (use_mash or use_mummer_mumi or use_ani)
-    mum = args.mum_length
-    maxpartition = args.max_partition_size
+    # mum = args.mum_length # (using args directly)
+    # maxpartition = args.max_partition_size
     fastmum = args.fastmum
-    cluster = args.max_cluster_d
+    # cluster = args.max_cluster_d # (using args directly)
     curated = args.curated
     aligner = ALIGNER_TO_IDX[args.alignment_program.lower()]
     threads = args.threads
     unaligned = "0" if not args.unaligned else "1"
-    mincluster = args.min_cluster_size
+    # mincluster = args.min_cluster_size # (using args directly)
     diagdiff = args.max_diagonal_difference
     # splitseq = args.split
-    extend = args.extend
+    # extend = args.extend  # (using args directly)
     # layout = args.layout
     xtrafast = args.xtrafast
     inifile = args.inifile
@@ -586,204 +1093,35 @@ if __name__ == "__main__":
     filtreps = False
 
     repfile = ""
-    multifasta = False
     ref_seqs = {}
 
     logger.setLevel(logging_level)
     for handler in logger.handlers:
         handler.setLevel(logging_level)
 
-    # Check for dependencies
-    missing = False
-    for exe in ["Profile", "raxmlHPC-PTHREADS", "harvesttools"]:
-        if shutil.which(exe) is None:
-            missing = True
-            logger.critical("{} not in system path!".format(exe))
-    if use_fasttree:
-        has_fasttree = False
-        for exe in ["fasttree", "FastTree", "FastTreeMP"]:
-            if shutil.which(exe) is not None:
-                has_fasttree = True
-        if not has_fasttree:
-            logger.critical("No fasttree executable found in system path!".format(exe))
-        missing = missing or (not has_fasttree)
-    if missing:
-        sys.exit(1)
+    # 2) Check for dependencies
+    check_for_dependencies(use_fasttree)
 
-    # Create output dir
-    if outputDir == "." or outputDir == "./" or outputDir == "/":
-        logger.critical("Specified output dir is current working dir or root dir! will clobber any parsnp.* results")
-        sys.exit(1)
-    elif outputDir == "[P_CURRDATE_CURRTIME]":
-        today = datetime.datetime.now()
-        timestamp = "P_"+today.isoformat().replace("-","_").replace(".","").replace(":","").replace("T","_")
-        outputDir = os.getcwd()+os.sep+timestamp
-    os.makedirs(outputDir, exist_ok=True)
-    shutil.rmtree(os.path.join(outputDir, "tmp"), ignore_errors=True)
-    os.makedirs(os.path.join(outputDir, "tmp"), exist_ok=True)
+    # 3) Create output dir
+    create_output_directory(outputDir)
 
-    input_files_processed = []
-    for input_f in input_files:
-        if os.path.isdir(input_f):
-            for f in os.listdir(input_f):
-                f = os.path.join(input_f, f)
-                if os.path.isfile(f):
-                    input_files_processed.append(f)
-        elif os.path.isfile(input_f):
-            if Path(input_f).suffix == ".txt":
-                with open(input_f) as seq_list:
-                    for line in seq_list:
-                        input_f = line.strip()
-                        if os.path.isdir(input_f):
-                            for f in os.listdir(input_f):
-                                f = os.path.join(input_f, f)
-                                if os.path.isfile(f):
-                                    input_files_processed.append(f)
-                        else:
-                            input_files_processed.append(input_f)
-            else:
-                input_files_processed.append(input_f)
-        else:
-            logger.error("{} is not a valid file".format(input_f))
-    input_files = input_files_processed
-    if len(input_files) < 2:
-        logger.critical("Less than 2 input sequences provided...")
-        sys.exit(1)
-    if args.validate_input:
-        bad_files = set()
-        for f in tqdm(input_files + ([ref] if ref and ref != "!" else [])):
-            try:
-                records = list(SeqIO.parse(f, "fasta"))
-            except:
-                logger.error("{} is an invalid sequence file!".format(f))
-                bad_files.add(f)
-                continue
-            if args.extend_lcbs and len(records) > 1:
-                print(f)
-                logger.error("Extending LCBs does not currently work with multi-contig inputs yet")
-                sys.exit(1)
-            for record in records:
-                if any(c not in "GATCRYWSMKHBVDN" + "GATCRYWSMKHBVDN".lower() for c in record.seq):
-                    logger.error("Genome sequence {} has invalid characters {}! Skip!".format(f, set(str(record.seq)) - set("AGCTNagctn")))
-                    bad_files.add(f)
-        input_files = list(set(input_files) - bad_files)
+    # 4) Process all input files:
+    #   -- 'input_files' here is args.sequences
+    input_files = process_input_files(args, input_files)
 
     # Parse reference if necessary
-    if ref and ref != "!":
-        try:
-            rf = open(ref, 'r')
-            rfd = rf.read()
-            refseqs = rfd.split(">")[1:]
-            currpos = 0
-            if len(refseqs) > 1:
-                multifasta = True
-                for seqnum, seq in enumerate(refseqs):
-                    seq = seq.split('\n', 1)[1]
-                    fastalen = len(seq) - seq.count('\n')
-                    ref_seqs[currpos + fastalen] = seqnum
-                    currpos += fastalen
-            rf.close()
-        except IOError as e:
-            logger.critical(" Reference genome file %s not found\n"%(ref))
-            sys.exit(1)
+    multifasta, ref_seqs = parse_reference_file(ref)
 
-    # Validate genbank files
+    # 5) Validate genbank files
     #TODO Make this a function
     # return genbank_ref
     if args.genbank:
-        genbank_files = args.genbank
-        genbank_files_processed = []
-        for genbank_f in genbank_files:
-            if os.path.isdir(genbank_f):
-                for f in os.listdir(genbank_f):
-                    f = os.path.join(genbank_f, f)
-                    if os.path.isfile(f):
-                        genbank_files_processed.append(f)
-            elif os.path.isfile(genbank_f):
-                genbank_files_processed.append(genbank_f)
-            else:
-                logger.error("{} is not a valid file".format(genbank_f))
-        genbank_files = genbank_files_processed
-        if len(genbank_files) == 0:
-            logger.critical("No valid genbank files provided...")
-            sys.exit(1)
-        ctcmd = "cat "
+        genbank_ref, genbank_files = parse_genbank_files(args, outputDir)
 
-        first = True
-        #genbank_ref = ""
-        for genbank_file in genbank_files:
-            if len(genbank_file) <= 1:
-                continue
-            ctcmd += genbank_file + " "
-            genbank_ref = os.path.join(outputDir, "tmp", os.path.basename(genbank_file)+".fna")
-            try:
-                #parse out reference, starts at ORIGIN ends at //, remove numbers,
-                rf = open(genbank_file,'r')
-                genbank_ref_d = open(genbank_ref, "a+")
-                while True:
-                    giline = rf.readline()
-                    if "VERSION" and "GI" in giline:
-                        break
-                    elif giline == None or giline == "":
-                        logger.critical("Genbank file %s malformatted \n"%(genbank_file))
-                        sys.exit(1)
-                if len(giline) <= 2:
-                    logger.critical("Genbank file %s malformatted \n"%(genbank_file))
-                    sys.exit(1)
-                genbank_ref_d.write(">gi|"+giline.split("GI:")[-1])
-                first = False
-                ntdata = False
-                data = ""
-                for line in rf:
-                    if ntdata:
-                        if "//" in line:
-                            ntdata = False
-                            break
-                        data += line[9:].replace(" ","")
-                    if "ORIGIN" in line:
-                         ntdata = True
+    # This part just makes the output string for the command output listing all the genomes:
+    sortem, ref_string, genome_string, ref = make_genome_and_reference_output_strings(ref, genbank_files)
 
-                rf.close()
-                if len(data) < 10:
-                      logger.critical("Genbank file %s contains no sequence data\n"%(genbank_file))
-                      sys.exit(1)
-                genbank_ref_d.write(data.upper())
-                genbank_ref_d.close()
-            except IOError as e:
-                logger.critical("Genbank file %s not found\n"%(genbank_file))
-                sys.exit(1)
-
-
-
-    sortem = True
-    ref_string = ref
-    genome_string = ""
-    if len(input_files) > 1:
-        genome_string = "\n\t"
-        if len(input_files) > 4:
-            genome_string += "\n\t".join(input_files[:2])
-            genome_string += "\n\t...{} more file(s)...\n\t".format(len(input_files) - 4)
-            genome_string += "\n\t".join(input_files[-2:])
-        else:
-            genome_string += "\n\t".join(input_files)
-    else:
-        genome_string = input_files[0]
-    if len(ref) == 0 and len(genbank_ref) != 0:
-        #we are parsing from genbank, set ref to genbank_ref && turn off sorting
-        ref = genbank_ref
-        if len(genbank_files) > 1:
-            ref_string = "\n\t"
-            if len(genbank_files) > 4:
-                ref_string += "\n\t".join(genbank_files[:2])
-                ref_string += "\n\t...{} more file(s)...\n\t".format(len(genbank_files) - 4)
-                ref_string += "\n\t".join(genbank_files[-2:])
-            else:
-                ref_string = "\n\t".join(genbank_files)
-        else:
-            ref_string += genbank_files[0]
-
-        sortem = False
-
+    # Selects the reference:
     autopick_ref = False
     if (not ref and not query) or not input_files:
         logger.critical("No seqs provided, yet required. exit!")
@@ -814,8 +1152,7 @@ SETTINGS:
         threads,
         (len(outputDir)+17)*"*"))
 
-
-
+    # If we requested more threads than available, give a warning.
     if len(os.sched_getaffinity(0)) < threads:
         logger.warning("You have asked to use more threads than you have available on your machine. This may lead to serious performance degredation with RAxML.")
     logger.info("<<Parsnp started>>")
@@ -827,73 +1164,16 @@ SETTINGS:
 
     allfiles = []
     fnaf_sizes = {}
-    allfile_dict = {}
     reflen = 0
-    fnafiles = []
+
     if ref == "!":
         ref = random.choice(input_files)
 
     # Check if reference genome is aligned
-    with open(ref, 'r') as ff:
-        hdr = ff.readline()
-        seq = ff.read()
-        if hdr[0] != ">":
-            logger.critical("Reference {} has improperly formatted header.".format(ref))
-            sys.exit(1)
-        for line in seq.split('\n'):
-            if '-' in line and line[0] != ">":
-                logger.warning("Reference genome sequence %s has '-' in the sequence!"%((ref)))
-        reflen = len(seq) - seq.count('\n')
+    reflen = check_ref_genome_aligned(ref)
 
-    for input_file in input_files[:]:
-        try:
-            record = list(SeqIO.parse(input_file, "fasta"))
-            if len(record) == 0:
-                input_files.remove(input_file)
-                logger.error(f"{input_file} is an empty file!")
-                continue
-        except:
-            input_files.remove(input_file)
-            logger.error(f"Could not parse {input_file}!")
-            continue
-
-        ff = open(input_file, 'r')
-        hdr = ff.readline()
-        seq = ff.read()
-        name_flag = True
-        seqlen = len(seq) - seq.count('\n')
-        if hdr[0] != ">":
-            logger.error("{} has improperly formatted header. Skip!".format(input_file))
-            continue
-        elif '-' in seq:
-            seq = seq.split('\n')
-            if any('-' in l and ('>' not in l) for l in seq):
-                logger.error("Genome sequence %s seems to be aligned! Skip!"%((input_file)))
-                continue
-        elif seqlen <= 20:
-            logger.error("File %s is less than or equal to 20bp in length. Skip!"%(input_file))
-            continue
-        sizediff = float(reflen)/float(seqlen)
-
-        if curated:
-            log_f = logger.warning
-            msg = ""
-        else:
-            log_f = logger.error
-            msg = "Skipping..."
-        if sizediff <= 0.8:
-            log_f("File {} is {:.2f}x longer than reference! {}".format(
-                input_file, 1/sizediff, msg))
-            if not curated:
-                continue
-        elif sizediff >= 1.2:
-            log_f("File {} is {:.2f}x shorter than reference genome! {}".format(
-                input_file, sizediff, msg))
-            if not curated:
-                continue
-        fnafiles.append(input_file)
-        fnaf_sizes[input_file] = seqlen
-        ff.close()
+    # Uses biopython to parse the inputs (just checking it again)
+    input_files, fnafiles, fnaf_sizes = parse_input_files(input_files, curated)
 
     # if ref in fnafiles:
         # fnafiles.remove(ref)
@@ -932,38 +1212,9 @@ SETTINGS:
 
     # TODO stray comment: remove any query sequences 30% diff in length
     allfiles = [os.path.basename(ref)]
-    #write INI file
+    #write INI file to pass to the first stage of parsnp:
     if not inifile_exists:
-        logger.debug("Writing .ini file")
-        if xtrafast or 1:
-            extend = False
-
-        inifiled = open("%s/template.ini"%(PARSNP_DIR), 'r').read()
-        inifiled = inifiled.replace("$REF", ref)
-        inifiled = inifiled.replace("$EXTEND", "%d"%(extend))
-        inifiled = inifiled.replace("$ANCHORS", str(anchor))
-        inifiled = inifiled.replace("$MUMS", str(mum))
-        inifiled = inifiled.replace("$MINCLUSTER", str(mincluster))
-        inifiled = inifiled.replace("$CLUSTERD", str(cluster))
-        inifiled = inifiled.replace("$THREADS", str(threads))
-        inifiled = inifiled.replace("$ALIGNER", str(aligner))
-        inifiled = inifiled.replace("$DIAGDIFF", str(diagdiff))
-        inifiled = inifiled.replace("$RECOMBFILT", "%d"%(xtrafast))
-        inifiled = inifiled.replace("$OUTDIR", outputDir)
-        if fastmum:
-            inifiled = inifiled.replace("$PARTPOS","%d"%(0.2*reflen))
-        else:
-            inifiled = inifiled.replace("$PARTPOS","%s"%(maxpartition))
-
-        file_string = ""
-        for cnt, fna_file in enumerate(fnafiles, 1):
-            file_string += "file%d=%s\n"%(cnt, fna_file)
-            file_string += "reverse%d=0\n"%(cnt)
-        inifiled_mumi = inifiled.replace("$FILES\n", file_string)
-        inifiled_mumi = inifiled_mumi.replace("calcmumi=0","calcmumi=1")
-        inifile_mumi = open(os.path.join(outputDir, "all_mumi.ini"), 'w')
-        inifile_mumi.write(inifiled_mumi)
-        inifile_mumi.close()
+        inifiled = write_inifile_1(args, ref, aligner, xtrafast, outputDir, fastmum, reflen, fnafiles, threads)
 
     #2)get near neighbors (mumi distance)
     if os.path.exists(os.path.join(outputDir, "alltogether.fasta")):
@@ -973,21 +1224,13 @@ SETTINGS:
         for f in ftrm:
             shutil.rmtree(f)
 
-    fileidx = -1
-
-    hit_dict = {}
-    qry_hit_dict = {}
-    hdr_dict = {}
-    length_dict = {}
-
-    TOTSEQS= len(fnafiles) + 1
-    seqids_list = []
-
     if len(fnafiles) < 1 or ref == "":
         logger.critical("Parsnp requires 2 or more genomes to run, exiting")
         logger.debug("Only files found are: {}\n{} ".format(fnafiles, ref))
         sys.exit(1)
 
+    # This is where it will calculate the genome distance (mumi or ANI) to the reference and will kick out
+    #   ones that are too far apart from the final output.
     mumi_dict = {}
     finalfiles = []
     auto_ref = ""
@@ -1000,6 +1243,7 @@ SETTINGS:
                 # TODO why are we editing the suffix of a provided file?
                 command = "%s/bin/parsnp_core %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
             run_command(command)
+            # Takes eeach sequence and computes its mumi distance to the reference
             try:
                 mumif = open(os.path.join(outputDir, "all.mumi"),'r')
                 for line in mumif:
@@ -1107,6 +1351,7 @@ SETTINGS:
                 # shutil.rmtree(tmp_dir)
             allfiles.extend(finalfiles)
 
+    # If "curateD" then anything that was removed gets added back.
     if curated:
         for f in fnafiles:
             if f not in finalfiles:
@@ -1118,6 +1363,7 @@ SETTINGS:
         mumi_f.close()
         sys.exit(1)
 
+    # More stuff to autopick the reference if needed:
     orig_auto_ref = auto_ref
     if os.path.exists(auto_ref) and autopick_ref:
         #TODO This code block is duplicated
@@ -1143,47 +1389,9 @@ SETTINGS:
         ffo.close()
         ref = auto_ref
 
-    inifiled_closest = inifiled
-    #TODO This code is duplicated
+    # Editing the ini file to be used for parnsp-aligner (which is different from parsnip as a mumi finder)
     if not inifile_exists:
-        if len(finalfiles) < 1 or ref == "":
-            logger.critical("Parsnp requires 2 or more genomes to run, exiting\n")
-            sys.exit(1)
-
-        file_string = ""
-        cnt = 1
-        file_string_closest = ""
-        #TODO whats the point of iterating over one file?
-        for cnt, f in enumerate(finalfiles[0:1], 1):
-            file_string_closest+="file%d=%s\n"%(cnt, f)
-            file_string_closest+="reverse%d=0\n"%(cnt)
-        for cnt, f in enumerate(finalfiles, 1):
-            file_string+="file%d=%s\n"%(cnt, f)
-            file_string+="reverse%d=0\n"%(cnt)
-        inifiled = inifiled.replace("$FILES\n",file_string)
-        #new, output unaligned regions
-        inifiled = inifiled.replace("$UNALIGNED",unaligned)
-        inifiled_closest = inifiled.replace("$FILES\n",file_string_closest)
-
-        if fastmum:
-            inifiled = inifiled.replace("p=%d"%(0.2*reflen),"p=%s"%(maxpartition))
-            inifiled_closest = inifiled.replace("p=%d"%(0.2*reflen),"p=%s"%(maxpartition))
-        if autopick_ref:
-            inifiled = inifiled.replace(orig_auto_ref,auto_ref)
-            inifiled = inifiled.replace(auto_ref,"tmp_"+auto_ref)
-            inifiled = inifiled.replace(query,auto_ref)
-            inifiled = inifiled.replace("tmp_"+auto_ref,query)
-            inifiled_closest = inifiled_closest.replace(auto_ref,"tmp_"+auto_ref)
-            inifiled_closest = inifiled_closest.replace(query,auto_ref)
-            inifiled_closest = inifiled_closest.replace("tmp_"+auto_ref,query)
-
-        inifile = open(outputDir+os.sep+"parsnpAligner.ini",'w')
-        inifile.write(inifiled)
-        inifile.close()
-        inifile_closest = open(outputDir+os.sep+"psnn.ini",'w')
-        inifile_closest.write(inifiled_closest)
-        inifile_closest.close()
-
+        write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, finalfiles, ref)
 
     #3)run parsnp (cores, grid?)
     logger.info("Running Parsnp multi-MUM search and libMUSCLE aligner...")
@@ -1198,7 +1406,7 @@ SETTINGS:
         runcnt = 0
         while not successful_run:
             if not inifile_exists:
-                if command == "" and xtrafast and 0:
+                if command == "" and xtrafast and 0: #THIS WILL NEVER RUN (xtrafast is out of date I think)
                     command = "%s/parsnpA_fast %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
                 elif command == "":
                     command = "%s/bin/parsnp_core %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
@@ -1224,11 +1432,6 @@ SETTINGS:
         shutil.move(
                 os.path.join(outputDir, "parsnpAligner.xmfa"),
                 os.path.join(outputDir, "parsnp.xmfa"))
-    xmfafile = open(os.path.join(outputDir, "parsnp.xmfa"),'r')
-
-    file2hdr_dict = {}
-    fileid = ""
-    blockfiles = []
 
     #get coverage
     coverage = 0
@@ -1286,6 +1489,7 @@ Please verify recruited genomes are all strain of interest""")
                 block_startpos.append(int(spos))
                 block_dict[f] = [int(spos),int(epos), rseq]
                 lf.close()
+    # This is set to False earlier so not used:
     run_repeat_filter = filtreps
 
     #initiate parallelPhiPack tasks
@@ -1383,6 +1587,7 @@ Please verify recruited genomes are all strain of interest""")
 
     run_lcb_trees = 0
 
+    # This is the stuff for LCB extension:
     annotation_dict = {}
     #TODO always using xtrafast?
     parsnp_output = f"{outputDir}/parsnp.xmfa"
