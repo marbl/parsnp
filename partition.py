@@ -131,7 +131,6 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
                 # assert(all(interval in ref_cidx_to_intervals[contig_idx] for interval in trimmed_intervals))
                 ref_rec = rec
             except Exception as e:
-                print(trimmed_intervals)
                 print((super_startpos, super_endpos))
                 print(ref_cidx_to_intervals[contig_idx])
                 raise e
@@ -306,7 +305,7 @@ def merge_blocks(aln_xmfa_pairs, fidx_to_new_idx):
     combined_seqs = []
     name_to_idx = {}
     xmfa_file_to_col = {}
-    for seq in aln[:-1]:
+    for seq in aln:
         # This copies the string as well, but we could do it faster by just copying the seq metadata
         new_seq = copy.deepcopy(seq)
         new_seq.name = fidx_to_new_idx[(xmfa_file, int(seq.name))]
@@ -317,7 +316,7 @@ def merge_blocks(aln_xmfa_pairs, fidx_to_new_idx):
         combined_seqs.append(new_seq)
     
     for aln, xmfa_file in aln_xmfa_pairs[1:]:
-        for seq in aln[1:-1]:
+        for seq in aln[1:]:
             new_seq = copy.deepcopy(seq)
             new_seq.name = fidx_to_new_idx[(xmfa_file, int(seq.name))]
             new_seq.id = new_seq.id.split("/")[0]
@@ -330,7 +329,8 @@ def merge_blocks(aln_xmfa_pairs, fidx_to_new_idx):
     gap_sequences = defaultdict(list)
     ref_pos = 0
     
-    while True:
+    all_done = False
+    while not all_done:
         in_gap = False
         all_done = True
         for aln, xmfa_file in aln_xmfa_pairs:
@@ -341,89 +341,56 @@ def merge_blocks(aln_xmfa_pairs, fidx_to_new_idx):
             if col < len(aln[0].seq):
                 all_done = False
                 
-        if all_done:
-            break
-            
-        if not in_gap:
-            if len(gap_sequences) != 0:
-                # Perform MSA on gap_sequences
-                gap_name_to_idx = {}
-                seqs_to_align = []
-                for name, bases in gap_sequences.items():
-                    gap_name_to_idx[name] = len(seqs_to_align)
-                    seqs_to_align.append("".join(bases))
-                    
-                consensus, aligned_msa_seqs = spoa.poa(seqs_to_align)
+        if (not in_gap or all_done) and len(gap_sequences) != 0:
+            # Perform MSA on gap_sequences
+            gap_name_to_idx = {}
+            seqs_to_align = []
+            for name, bases in gap_sequences.items():
+                gap_name_to_idx[name] = len(seqs_to_align)
+                seqs_to_align.append("".join(bases))
                 
-                # Add resulting alignment and gaps to lcb
-                aln_len = max(len(s) for s in aligned_msa_seqs)
+            consensus, aligned_msa_seqs = spoa.poa(seqs_to_align)
+            
+            # Add resulting alignment and gaps to lcb
+            aln_len = max(len(s) for s in aligned_msa_seqs)
 
-                for name in sorted_names:
-                    record = combined_seqs[name_to_idx[name]]
-                    if name in gap_name_to_idx:
-                        aligned_seq = aligned_msa_seqs[gap_name_to_idx[name]]
-                    else:
-                        aligned_seq = "-"*aln_len 
-                    record.seq += aligned_seq
-                    
-                # Clear gap sequences
-                gap_sequences = defaultdict(list)
+            for name in sorted_names:
+                record = combined_seqs[name_to_idx[name]]
+                if name in gap_name_to_idx:
+                    aligned_seq = aligned_msa_seqs[gap_name_to_idx[name]]
+                else:
+                    aligned_seq = "-"*aln_len 
+                record.seq += aligned_seq
+                
+            # Clear gap sequences
+            gap_sequences = defaultdict(list)
 
+        elif not in_gap and not all_done:
             # Add to alignment
             for aln_idx, (aln, xmfa_file) in enumerate(aln_xmfa_pairs):
                 col = xmfa_file_to_col[xmfa_file]
-                for rec in aln[0 if aln_idx == 0 else 1:-1]:
+                for rec in aln[0 if aln_idx == 0 else 1:]:
                     new_name = fidx_to_new_idx[(xmfa_file, int(rec.name))]
                     new_record = combined_seqs[name_to_idx[new_name]]
                     new_record.seq += rec.seq[col]
                 xmfa_file_to_col[xmfa_file] += 1 
-        else:
+
+        elif not all_done:
             # We are in a gap for some ref sequence
             # For each alignment, take the slice starting at the current position
             # and ending at the next non-gap reference position for aln_idx, (aln, xmfa_file) in enumerate(aln_xmfa_pairs):
             for aln_idx, (aln, xmfa_file) in enumerate(aln_xmfa_pairs):
                 col = xmfa_file_to_col[xmfa_file]
                 while col < len(aln[0].seq) and aln[0].seq[col] == "-":
-                    for rec in aln[0 if aln_idx == 0 else 1:-1]:
+                    for rec in aln[0 if aln_idx == 0 else 1:]:
                         if col < len(rec.seq) and rec.seq[col] != "-":
                             new_name = fidx_to_new_idx[(xmfa_file, int(rec.name))]
                             gap_sequences[new_name].append(rec.seq[col])
-                    xmfa_file_to_col[xmfa_file] += 1 
-                    col = xmfa_file_to_col[xmfa_file]
-    
-    if len(gap_sequences) != 0:
-        # Perform MSA on gap_sequences
-        gap_name_to_idx = {}
-        seqs_to_align = []
-        for name, bases in gap_sequences.items():
-            gap_name_to_idx[name] = len(seqs_to_align)
-            seqs_to_align.append("".join(bases))
+                    col += 1
+                xmfa_file_to_col[xmfa_file] = col
 
-        consensus, aligned_msa_seqs = spoa.poa(seqs_to_align)
-
-        # Add resulting alignment and gaps to lcb
-        aln_len = max(len(s) for s in aligned_msa_seqs)
-
-        for name in sorted_names:
-            record = combined_seqs[name_to_idx[name]]
-            if name in gap_name_to_idx:
-                aligned_seq = aligned_msa_seqs[gap_name_to_idx[name]]
-            else:
-                aligned_seq = "-"*aln_len 
-            record.seq += aligned_seq
-            
-        # Add resulting alignment and gaps to lcb
-        aln_len = max(len(s) for s in gap_sequences.values())
-
-        for name in sorted_names:
-            record = combined_seqs[name_to_idx[name]]
-            aligned_seq = "".join(gap_sequences[name]) + "-"*(aln_len - len(gap_sequences[name]))
-            record.seq += aligned_seq
-
-        # Clear gap sequences
-        gap_sequences = defaultdict(list)
-        
     return MultipleSeqAlignment(combined_seqs)
+
 
 
 def run_command(cmd):
