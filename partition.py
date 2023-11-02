@@ -8,18 +8,15 @@ import copy
 import math
 from multiprocessing import Pool
 from functools import partial
-from glob import glob
-from itertools import product, combinations
-from pathlib import Path
-from collections import namedtuple, defaultdict, Counter
+from collections import namedtuple, defaultdict
+from typing import List, Tuple, Mapping, TextIO
 
 import numpy as np
 import spoa
-from Bio import AlignIO, SeqIO
+from Bio import AlignIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from Bio.Align import substitution_matrices
 from tqdm import tqdm
 
 # from logger import logger
@@ -27,54 +24,52 @@ from tqdm import tqdm
 
 FASTA_SUFFIX_LIST = ".fasta, .fas, .fa, .fna, .ffn, .faa, .mpfa, .frn".split(", ")
 CHUNK_PREFIX = "chunk"
+XMFASequenceEntry = namedtuple("XMFASequenceEntry", "index file header length")
+
+IntervalType = Tuple[int, int]
 
 
-def getIntersection(interval_1, interval_2):
-    start = max(interval_1[0], interval_2[0])
-    end = min(interval_1[1], interval_2[1])
-    if start < end:
-        return (start, end)
-    return None
+def interval_intersection(A: List[IntervalType], B: List[IntervalType]) -> List[IntervalType]:
+    """
+    Args:
+        A:  First list
+        B:  Second list
+    Returns:
+        A list of the intersection of the input lists
+    """
+    ans = []
+    i = j = 0
+
+    while i < len(A) and j < len(B):
+        # Let's check if A[i] intersects B[j].
+        # lo - the startpoint of the intersection
+        # hi - the endpoint of the intersection
+        lo = max(A[i][0], B[j][0])
+        hi = min(A[i][1], B[j][1])
+        if lo < hi:
+            ans.append([lo, hi])
+
+        # Remove the interval with the smallest endpoint
+        if A[i][1] < B[j][1]:
+            i += 1
+        else:
+            j += 1
+
+    return ans
 
 
-def intersect(intervals1, intervals2):
-    if len(intervals1) == 0 or len(intervals2) == 0:
-        return 
-    iter1 = iter(intervals1)
-    iter2 = iter(intervals2)
+def get_interval(aln: MultipleSeqAlignment, seqidx: int) -> Tuple[int, IntervalType]:
+    """
+    Get the interval of a desired sequence from an alignment
 
-    interval1 = next(iter1)
-    interval2 = next(iter2)
-
-    while True:
-        intersection = getIntersection(interval1, interval2)
-        if intersection:
-            yield intersection
-            try:
-                if intersection[1] == interval1[1]:
-                    interval1 = next(iter1)
-                else:
-                    interval2 = next(iter2)
-            except StopIteration:
-                return
-
-        try:
-            # If first interval starts after the end of the second interval
-            # inc the second interval
-            while interval1[0] >= interval2[1]:
-                interval2 = next(iter2)
-             
-            # If second interval starts after the end of the first interval
-            # inc the first interval
-            while interval2[0] >= interval1[1]:
-                interval1 = next(iter1)
-        except StopIteration:
-            return
-
-
-def get_interval(lcb, seqidx):
+    Args:
+        aln:    A MultipleSeqAlignment object representing an LCB
+        seqidx: The idx of the sequence whose interval to return
+    Returns:
+        A tuple (A, B) where A is the contig idx of the sequence at seqidx, and B is the interval
+    """
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)/.*')
-    for seq in lcb:
+    for seq in aln:
         if int(seq.name) == seqidx:
             aln_len = seq.annotations["end"] - seq.annotations["start"] + 1
             cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(seq.id).groups()]
@@ -85,35 +80,52 @@ def get_interval(lcb, seqidx):
                 endpos = startpos + aln_len
                 
             return (contig_idx, (startpos, endpos))
+    print(f"ERROR:\tSequence with idx={seqidx} not found in the LCB!")
+    print(MultipleSeqAlignment)
+    raise
+
         
 
-def cut_overlaps(ilist):
+def cut_overlaps(ilist: List[IntervalType]) -> None:
     """
     If two intervals overlap, I1 = (a, b), I2 = (b-10, c)
     then trim the second interval to be (b+1, c)
+
+    Args:
+        ilist: List of intervals to be cut
     """
     for i in range(len(ilist) - 1):
         if ilist[i][1] >= ilist[i+1][0]:
             ilist[i+1] = (ilist[i][1]+1, ilist[i+1][1])
 
 
-def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
+def trim(aln: MultipleSeqAlignment, 
+         ref_cidx_to_intervals: Mapping[int, List[IntervalType]], 
+         seqidx: int, 
+         cluster_start: int) -> List[MultipleSeqAlignment]:
     """
-    lcb : MultipleSeqAlignment
-    ref_cidx_to_intervals : {reference_contig_idx : [(start1, end1), ..., (startn, endn)]}
-    seqidx : The index of the reference sequence in the Parsnp XMFA header (typically 1)
-    cluster_start : The index of the first output cluster in the trimmed alignment
+    Slice the input alignment up such that the coordinates of the output alignments with resepct 
+    to sequence seqidx are consistent with intervals of the corresponding contig in the 
+    ref_cidx_to_intervals mapping.
+
+    Args:
+        aln : MultipleSeqAlignment object to be trimmed
+        ref_cidx_to_intervals : {reference_contig_idx : [(start1, end1), ..., (startn, endn)]}
+        seqidx : The index of the reference sequence in the Parsnp XMFA header (typically 1)
+        cluster_start : The index of the first output cluster in the trimmed alignment
+    Returns:
+        A list of MultipleSeqAlignment objects
     """
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)')
-    ret_lcbs = []
+    ret_alns = []
     # Store a copy of the SeqRecord objects w/ the correct name, id, annotation dict etc
     empty_seqs = [
         SeqRecord(Seq(""), id=rec.id, name=rec.name, description=rec.description, annotations=copy.deepcopy(rec.annotations))
-        for rec in lcb
+        for rec in aln
     ]
 
     # Look for the record in the LCB that represents the reference genome
-    for rec in lcb:
+    for rec in aln:
         if int(rec.name) == seqidx:
             aln_len = rec.annotations["end"] - rec.annotations["start"] + 1
             cluster_idx, contig_idx, super_startpos = [int(x) for x in seqid_parser.match(rec.id).groups()]
@@ -127,7 +139,9 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
                 # super_startpos and super_endpos represent the start and endpoint of this 
                 # LCB in the reference. This LCB may be trimmed into multiple LCBs, each of 
                 # which is represented by one of the trimmed_intervals
-                trimmed_intervals = list(intersect(ref_cidx_to_intervals[contig_idx], [(super_startpos, super_endpos)]))
+                trimmed_intervals = interval_intersection(
+                    ref_cidx_to_intervals[contig_idx], 
+                    [(super_startpos, super_endpos)])
                 # assert(all(interval in ref_cidx_to_intervals[contig_idx] for interval in trimmed_intervals))
                 ref_rec = rec
             except Exception as e:
@@ -137,7 +151,7 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
             break
     else:
         print("Interval not found!")
-        print(lcb)
+        print(aln)
         print(seqidx)
         raise
     
@@ -151,13 +165,13 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
     for i in range(1, len(ref_rec.seq)+1):
         ref_ssum[i] = ref_ssum[i-1] + (0 if ref_rec.seq[-i] == '-' else 1)
     
-    # lcb_psum[j][i] = number of nucleotides in first i columns of the jth sequence 
-    lcb_psum = [[0]*(len(ref_rec.seq) + 1) for _ in range(len(lcb))]
-    # lcb_ssum[j][i] = number of nucleotides in last i columns of the jth sequence 
-    lcb_ssum = [[0]*(len(ref_rec.seq) + 1) for _ in range(len(lcb))]
+    # aln_psum[j][i] = number of nucleotides in first i columns of the jth sequence 
+    aln_psum = [[0]*(len(ref_rec.seq) + 1) for _ in range(len(aln))]
+    # aln_ssum[j][i] = number of nucleotides in last i columns of the jth sequence 
+    aln_ssum = [[0]*(len(ref_rec.seq) + 1) for _ in range(len(aln))]
     
-    for rec_idx, rec in enumerate(lcb):
-        psum, ssum = lcb_psum[rec_idx], lcb_ssum[rec_idx]
+    for rec_idx, rec in enumerate(aln):
+        psum, ssum = aln_psum[rec_idx], aln_ssum[rec_idx]
         # psum[i] = number of nucleotides in first i columns
         for i in range(1, len(ref_rec.seq)+1):
             psum[i] = psum[i-1] + (0 if rec.seq[i-1] == '-' else 1)
@@ -167,7 +181,7 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
             ssum[i] = ssum[i-1] + (0 if rec.seq[-i] == '-' else 1)
     
     for interval_idx, trimmed_interval in (enumerate(trimmed_intervals)):
-        lcb_seqs = copy.deepcopy(empty_seqs)
+        aln_seqs = copy.deepcopy(empty_seqs)
         
         left_bases_trim = trimmed_interval[0] - super_startpos
         right_bases_trim = super_endpos - trimmed_interval[1]
@@ -175,17 +189,17 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
         left_cols_to_skip = bisect.bisect_left(ref_psum, left_bases_trim)
         right_cols_to_skip = bisect.bisect_left(ref_ssum, right_bases_trim)
            
-        for seq_idx, rec in enumerate(lcb):
+        for seq_idx, rec in enumerate(aln):
             # orig_seq = copy.deepcopy(seq)
-            new_rec = lcb_seqs[seq_idx]
+            new_rec = aln_seqs[seq_idx]
             
             aln_len = rec.annotations["end"] - rec.annotations["start"] + 1
             cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(rec.id).groups()]
             left_bases_trim = 0
             right_bases_trim = 0
                 
-            left_bases_trim = lcb_psum[seq_idx][left_cols_to_skip]
-            right_bases_trim = lcb_ssum[seq_idx][right_cols_to_skip]
+            left_bases_trim = aln_psum[seq_idx][left_cols_to_skip]
+            right_bases_trim = aln_ssum[seq_idx][right_cols_to_skip]
     
             if rec.annotations["strand"] == -1:
                 new_rec.annotations["start"] += right_bases_trim
@@ -202,14 +216,18 @@ def trim(lcb, ref_cidx_to_intervals, seqidx, cluster_start):
             else:
                 new_rec.seq = rec.seq[left_cols_to_skip:]
             
-        new_lcb = MultipleSeqAlignment(lcb_seqs)
-        ret_lcbs.append(new_lcb)
-    return ret_lcbs
+        new_aln = MultipleSeqAlignment(aln_seqs)
+        ret_alns.append(new_aln)
+    return ret_alns
 
 
-def copy_header(orig_xmfa, new_xmfa):
+def copy_header(orig_xmfa: str, new_xmfa: str) -> None:
     """
     Copy header from orig_xmfa to new_xmfa
+
+    Args:
+        orig_xmfa: Path to xmfa which has the header to be copied
+        new_aln:   Path to new xmfa
     """
     with open(orig_xmfa) as xmfa_in, open(new_xmfa, 'w') as xmfa_out:
         for line in xmfa_in:
@@ -219,14 +237,16 @@ def copy_header(orig_xmfa, new_xmfa):
                 break
 
 
-def write_lcb(lcb, out_handle):
+def write_aln_to_xmfa(aln: MultipleSeqAlignment, out_handle: TextIO) -> None:
     """
-    Write the LCB in XMFA format to the output handle.
-
-    lcb : MultipleSeqAlignment
+    Write the MultipleSeqAlignment to the output handle in xmfa format.
+    
+    Args:
+        aln :        MultipleSeqAlignment
+        out_handle:  An open file handle for the output alignment.
     """
     LINESIZE = 80
-    for rec in lcb:
+    for rec in aln:
         header = f"> {rec.name}:{rec.annotations['start']+1}-{rec.annotations['end']} {'+' if rec.annotations['strand'] == 1 else '-'} {rec.id}\n"
         out_handle.write(header)
         # print(len(rec.seq))
@@ -235,14 +255,23 @@ def write_lcb(lcb, out_handle):
     out_handle.write("=\n")
 
 
-def combine_header_info(xmfa_list):
+
+def combine_header_info(xmfa_list: List[str]) \
+        -> Tuple[Mapping[XMFASequenceEntry, int], Mapping[Tuple[str, int], int]]:
     """
-    Combine the headers of multiple partitioned parsnp outputs. 
+    Combine the headers of multiple partitioned parsnp outputs. Will avoid duplicate headers, i.e.
+    if two partitions have a sequence with the same header, only one will be present in the output. 
+
+    Args:
+        xmfa_list: A list of xmfa files to be combined.
+
+    Returns:
+        A tuple (A, B, C) where
+        A: Maps sequence metadata tuple to their index in the combined xmfa file.
+        B: Maps (file, original_index) pairs to the index in the combined xmfa file.
     """
-    SequenceEntry = namedtuple("SequenceEntry", "index file header length")
     fidx_to_new_idx = {}
     seq_to_idx = {}
-    header_to_xmfa = {}
     file_header_pairs = set()
     for xmfa_file in xmfa_list:
         with open(xmfa_file) as xmfa_in:
@@ -259,34 +288,36 @@ def combine_header_info(xmfa_list):
                 line = next(xmfa_in).strip()
                 length = int(line.split(" ")[1][:-2])
                 
-                entry = SequenceEntry(seqidx, file, header, length)
+                entry = XMFASequenceEntry(seqidx, file, header, length)
                 # Avoid duplicated headers, i.e. if the reference is duplicated
                 if (file, header) not in file_header_pairs:
                     file_header_pairs.add((file, header))
                     fidx_to_new_idx[(xmfa_file, entry.index)] = len(fidx_to_new_idx) + 1
                     seq_to_idx[entry] = fidx_to_new_idx[(xmfa_file, entry.index)]
-                    header_to_xmfa[entry.header] = xmfa_file
                 line = next(xmfa_in).strip()
             
-    return seq_to_idx, fidx_to_new_idx, header_to_xmfa
+    return seq_to_idx, fidx_to_new_idx
 
 
-def write_combined_header(seq_to_idx, cluster_count, xmfa_out_f, header_to_xmfa):
+def write_combined_header(
+    seq_to_idx: Mapping[XMFASequenceEntry, int], 
+    cluster_count: int, 
+    xmfa_out_f: str) -> None:
     """
-    Writes an XMFA header for the partitioned XMFA files.
+    Writes an XMFA header for the merged XMFA of the partitioned XMFA files.
 
-    seq_to_idx = {seq_name : idx_in_combined_xmfa}
-    cluster_count = number of clusters
-    xmfa_out_f = Name of output xmfa
-    header_to_xmfa = {xmfa_sequence_header : xmfa_file}
-    fidx_to_new_idx 
+    Args:
+        seq_to_idx:         Maps sequence metadata tuple to their index in the combined xmfa file.
+        cluster_count:      The number of clusters in the combined output.
+        xmfa_out_f:         Name of output xmfa
+        fidx_to_new_idx:    A mapping of (xmfa_file, sequence_index) to the index in the combined file. 
     """
 
     #TODO fix duplicated fidx_to_new_idx
     with open(xmfa_out_f, 'w') as xmfa_out:
         xmfa_out.write("#FormatVersion Parsnp v1.1\n")
         xmfa_out.write(f"#SequenceCount {len(seq_to_idx)}\n")
-        for idx, entry in enumerate(sorted(seq_to_idx.keys(), key=lambda k: seq_to_idx[k])):
+        for entry in sorted(seq_to_idx.keys(), key=lambda k: seq_to_idx[k]):
             xmfa_out.write(f"##SequenceIndex {seq_to_idx[entry]}\n")
             xmfa_out.write(f"##SequenceFile {entry.file}\n")
             xmfa_out.write(f"##SequenceHeader {entry.header}\n")
@@ -294,10 +325,29 @@ def write_combined_header(seq_to_idx, cluster_count, xmfa_out_f, header_to_xmfa)
         
         xmfa_out.write(f"#IntervalCount {cluster_count}\n")
 
-def merge_blocks(aln_xmfa_pairs, fidx_to_new_idx):
+def merge_blocks(
+    aln_xmfa_pairs: List[Tuple[MultipleSeqAlignment, str]], 
+    fidx_to_new_idx: Mapping[Tuple[str, int], int]) -> MultipleSeqAlignment:
     """
-    aln_xmfa_pairs = [(aln1, xmfa_file1), ..., (alnn, xmfa_filen)]
-    fidx_to_new_idx = {(xmfa_index, contig_idx) : index_in_combined_xmfa}
+    Given a list of MultipleSeqAlignment objects representing the same cluster
+    and their originating xmfa files, this function combines them into a single 
+    MultipleSeqAlignment object. 
+
+    Merging the alignment requires two important steps:
+    (1) The sequence index of the alignments must be updated to reflect their index in the 
+        combined XMFA file
+    (2) Re-aligning insertion sequences. While there is an equivalence relation for base pairs
+        which map to the reference, base pairs which are insertions wrt the reference have 
+        no equivalence, and therefore need to be re-aligned to other insertions. This is where 
+        we use the SPOA API.
+
+    Args:
+        aln_xmfa_pairs:     A list of pairs of MultipleSeqAlignment and the originating xmfa files.
+        fidx_to_new_idx:    A mapping of (xmfa_file, sequence_index) to the index in the combined file. 
+
+    Return:
+        A MultipleSeqAlignment representing the concatenated alignment of all of the input
+        alignments.
     """
     # ref is present in every block, so (len(alns[0].seq)-1)*len(alns) + 1 total seqs
     # Set the IDs
@@ -327,7 +377,6 @@ def merge_blocks(aln_xmfa_pairs, fidx_to_new_idx):
  
     sorted_names = sorted(name_to_idx.keys(), key=lambda x: int(x))
     gap_sequences = defaultdict(list)
-    ref_pos = 0
     
     all_done = False
     while not all_done:
@@ -393,14 +442,20 @@ def merge_blocks(aln_xmfa_pairs, fidx_to_new_idx):
 
 
 
-def run_command(cmd):
+def run_command(cmd: str) -> None:
     """
     Runs the provided command string.
+
+    Args:
+        cmd: The command to be run.
     """
-    subprocess.run(cmd, shell=True)
+    subprocess.run(cmd, shell=True, check=True)
     return
 
-def parse_args():
+def parse_args() -> None:
+    """
+    Parses command line arguments.
+    """
     parser = argparse.ArgumentParser(description="""
     Partition Parsnp Parser
     """, formatter_class=argparse.RawTextHelpFormatter)
@@ -456,17 +511,25 @@ def parse_args():
     return parser.parse_args()
 ####################################################################################################
 
-def get_chunked_intervals(partition_output_dir, chunk_labels):
+def get_chunked_intervals(partition_output_dir: str, chunk_labels: List[str])\
+        -> Mapping[str, Mapping[int, List[IntervalType]]]:
     """
-    Returns a mapping with the following structure
-    {chunk_id : {contig_idx : [(start1, stop1), ..., (startn, stopn)]}}
+    Returns the aligned reference intervals for each partition.
+
+    Args:
+        partition_output_dir:   The output directory of the partitioned Parsnp runs.
+        chunk_labels:           A list of the partition labels/ids.
+
+    Returns:
+        A mapping which maps partition ids to the reference intervals for that partition.
+            {chunk_label: {contig_idx: [(s1, e1), ... (sn, en)]}}
     """
     chunk_to_invervaldict = {}
     for chunk_label in chunk_labels:
         orig_xmfa = f"{partition_output_dir}/{CHUNK_PREFIX}-{chunk_label}-out/parsnp.xmfa"
         orig_alns = AlignIO.parse(orig_xmfa, "mauve")
         chunk_to_invervaldict[chunk_label] = defaultdict(list)
-        for idx, aln in enumerate((orig_alns)):
+        for aln in orig_alns:
             # Get reference idx and the interval of the alignment wrt the reference contig
             ref_cidx, interval = get_interval(aln, 1)
             chunk_to_invervaldict[chunk_label][ref_cidx].append(interval)
@@ -480,17 +543,25 @@ def get_chunked_intervals(partition_output_dir, chunk_labels):
     return chunk_to_invervaldict
 
 
-def get_intersected_intervals(chunk_to_invervaldict, min_interval_size=10):
+def get_intersected_intervals(
+    chunk_to_invervaldict: Mapping[str, Mapping[int, List[IntervalType]]],
+    min_interval_size: int=10)\
+        -> Mapping[str, Mapping[int, List[IntervalType]]]:
     """
-    Computes the intersection of all of the intervals in chunk_to_invervaldict
-    Each intervaldict is a mapping of (contig_idx : [interval_list])
+    Returns the intersection of all of the intervals in chunk_to_invervaldict.
+    Args:
+        chunk_to_invervaldict:  A mapping of partition IDs to mappings of contigs to intervals
+        min_interval_size:      Minimum interval size to retain. Smaller intervals will be dropped.
+
+    Returns:
+        A mapping which maps reference contigs to the intersected intervals for that contig.
     """
     first_chunk = list(chunk_to_invervaldict.keys())[0]
     intersected_interval_dict = copy.deepcopy(chunk_to_invervaldict[first_chunk])
 
     num_clusters = []
     bp_covered = []
-    for chunk_label, chunk_intervals in chunk_to_invervaldict.items():
+    for chunk_intervals in chunk_to_invervaldict.values():
         chunk_aligned_bp = 0
         num_intervals = 0
         for refcidx, intervals in chunk_intervals.items():
@@ -500,7 +571,9 @@ def get_intersected_intervals(chunk_to_invervaldict, min_interval_size=10):
         num_clusters.append(num_intervals)
         bp_covered.append(chunk_aligned_bp)
         for refcidx in set(intersected_interval_dict.keys()) | set(chunk_intervals.keys()):
-            intersected_interval_dict[refcidx] = list((intersect(intersected_interval_dict[refcidx], chunk_intervals[refcidx])))   
+            intersected_interval_dict[refcidx] = interval_intersection(
+                intersected_interval_dict[refcidx], 
+                chunk_intervals[refcidx])
         
     intersected_interval_dict = {
         key: [interval for interval in val if (interval[1] - interval[0]) >= min_interval_size] 
@@ -517,9 +590,21 @@ def get_intersected_intervals(chunk_to_invervaldict, min_interval_size=10):
     return intersected_interval_dict
 
 
-def trim_single_xmfa(xmfa_file, intersected_interval_dict):
-    chunk_parser = re.compile(f'(.*)-out/parsnp.xmfa')
-    chunk_label = chunk_parser.search(xmfa_file).groups()[0]
+def trim_single_xmfa(
+    xmfa_file: str, 
+    intersected_interval_dict: Mapping[int, List[IntervalType]]) -> int:
+    """
+    Given an input xmfa file, creates a new xmfa file with the ".trimmed" extension such that
+    f"{xmfa_file}.trimmed is an xmfa file with alignments that correspond to the intervals in
+    the intersected_interval_dict.
+
+    Args:
+        xmfa_file:                  XMFA file to be trimmed.
+        intersected_interval_dict:  A map of reference contig indicies to the intervals. 
+
+    Returns:
+        The number of clusters in the trimmed XMFA file.
+    """
     orig_alns = AlignIO.parse(xmfa_file, "mauve")
     
     trimmed_xmfa = xmfa_file + ".trimmed"
@@ -527,19 +612,32 @@ def trim_single_xmfa(xmfa_file, intersected_interval_dict):
     
     cluster_start = 1
     with open(trimmed_xmfa, 'a') as trimmed_out:
-        for idx, aln in enumerate((orig_alns)):
+        for aln in orig_alns:
             new_alns = trim(aln, intersected_interval_dict, seqidx=1, cluster_start=cluster_start)
             cluster_start += len(new_alns)
             for new_aln in new_alns:
-                write_lcb(new_aln, trimmed_out)
+                write_aln_to_xmfa(new_aln, trimmed_out)
     
     num_clusters = cluster_start - 1
     return num_clusters
 
 
-def trim_xmfas(partition_output_dir, chunk_labels, intersected_interval_dict, threads=1):
+def trim_xmfas(
+    partition_output_dir: str, 
+    chunk_labels: List[str], 
+    intersected_interval_dict: Mapping[int, List[IntervalType]],
+    threads: int=1) -> int:
     """
     Trim all XMFA files so that their LCBs are all wrt the same reference coordinates
+    
+    Args:
+        partition_output_dir:       The directory containing the partitioned outputs.
+        chunk_labels:               The partition ids.
+        intersected_interval_dict:  A map of reference contig indicies to the intervals. 
+        threads:                    The number of threads to use.
+
+    Returns:
+        The total number of clusters in each XMFA.
     """
     trim_partial = partial(trim_single_xmfa, intersected_interval_dict=intersected_interval_dict)
     orig_xmfa_files = [f"{partition_output_dir}/{CHUNK_PREFIX}-{cl}-out/parsnp.xmfa" for cl in chunk_labels]
@@ -547,32 +645,65 @@ def trim_xmfas(partition_output_dir, chunk_labels, intersected_interval_dict, th
         num_clusters_per_xmfa = list(tqdm(pool.imap_unordered(trim_partial, orig_xmfa_files), total=len(orig_xmfa_files)))
         #TODO clean up
         if not all(num_clusters_per_xmfa[0] == nc for nc in num_clusters_per_xmfa):
+            print(num_clusters_per_xmfa)
             print("ERROR: One of the partitions has a different number of clusters after trimming...")
-            exit(1)
+            raise
     return num_clusters_per_xmfa[0]
 
 
-def merge_single_LCB(cluster_idx, aln_xmfa_pairs, tmp_directory, fidx_to_new_idx):
+def merge_single_LCB(
+    cluster_idx: int, 
+    aln_xmfa_pairs: List[Tuple[MultipleSeqAlignment, str]], 
+    tmp_directory: str, 
+    fidx_to_new_idx: Mapping[Tuple[str, int], int]) -> str:
+    """
+    Merges the alignments in aln_xmfa_pairs into a single XMFA alignment entry. It creates an
+    output file in the provided directory representing this alignment.
+
+    Args:
+        cluster_idx:        The cluster index of the input alignments.
+        aln_xmfa_pairs:     The input alingments and their xmfa files.
+        tmp_directory:      A temporary directory to store output in.
+        fidx_to_new_idx:    A mapping of (xmfa_file, seqidx) tuples to the idx in the output alignment
+
+    Returns:
+        The path to the output alignment file.
+    """
     tmp_xmfa = f"{tmp_directory}/cluster-{cluster_idx}.temp" 
     with open(tmp_xmfa, 'w') as xmfa_out_handle:
         new_aln = merge_blocks(aln_xmfa_pairs, fidx_to_new_idx)
-        write_lcb(new_aln, xmfa_out_handle)
+        write_aln_to_xmfa(new_aln, xmfa_out_handle)
     return tmp_xmfa
 
 
 def merge_single_LCB_star(idx_pairs_tuple, tmp_directory, fidx_to_new_idx):
+    """
+    A helper function for merging LCBs. See the merge_single_LCB documentation.
+    """
     merge_single_LCB(idx_pairs_tuple[0], idx_pairs_tuple[1], tmp_directory, fidx_to_new_idx)    
 
 
-def merge_xmfas(partition_output_dir, chunk_labels, xmfa_out_f, num_clusters, threads=1):
+def merge_xmfas(
+    partition_output_dir: str, 
+    chunk_labels: List[str], 
+    xmfa_out_f: str, 
+    num_clusters: int, 
+    threads: int=1) -> None:
     """
     Take all of the trimmed XMFA files and compile them into a single XMFA
+
+    Args:
+        partition_output_dir: Directory of partitioned parsnp runs.
+        chunk_labels:           IDs of partitions.
+        xmfa_out_f:             Path to merged output XMFA file.
+        num_clusters:           Number of clusters in merged XMFA file.
+        threads:                Number of threads to use.
     """
 
     xmfa_files = [f"{partition_output_dir}/{CHUNK_PREFIX}-{cl}-out/parsnp.xmfa.trimmed"
                   for cl in chunk_labels]
-    seq_to_idx, fidx_to_new_idx, header_to_xmfa = combine_header_info(xmfa_files)
-    write_combined_header(seq_to_idx, num_clusters, xmfa_out_f, header_to_xmfa)
+    seq_to_idx, fidx_to_new_idx = combine_header_info(xmfa_files)
+    write_combined_header(seq_to_idx, num_clusters, xmfa_out_f)
 
     alns = [AlignIO.parse(f, "mauve") for f in xmfa_files]
 
