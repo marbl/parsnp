@@ -98,7 +98,7 @@ OSTYPE="linux"
 p = subprocess.Popen("echo `uname`", shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 (checkStdout, checkStderr) = p.communicate()
 if checkStderr != b"":
-    sys.stderr.write(WARNING_YELLOW+"Warning: Cannot determine OS, defaulting to %s\n"%(OSTYPE)+ENDC)
+    sys.stderr.write("Warning: Cannot determine OS, defaulting to %s\n"%(OSTYPE))
 else:
     OSTYPE = checkStdout.decode('utf-8').strip()
 
@@ -158,25 +158,6 @@ def run_fasttree(query,workingdir,recombination_sites):
 
 
 #TODO Merge wrappers
-def parallelWrapper(params):
-   try:
-        jobID = params["jobID"]
-        result = {}
-        result["jobID"] = jobID
-        result["status"] = 0
-        run_mummer(params["ref"], params["query"], params["prefix"])
-        result["status"] = 1
-        return result
-   except KeyboardInterrupt:
-        result["status"] = 0
-        logger.info("Keyboard interrupt in thread %d, quitting\n"%(jobID))
-        return result
-   except Exception:
-        result["status"] = 0
-        logger.info("Other error in thread %d, quitting\n"%(jobID))
-        return result
-
-
 def parallelFtWrapper(params):
    try:
         jobID = params["jobID"]
@@ -725,8 +706,7 @@ def process_input_files(cmd_args, input_files):
     # ...Step to validate the input if that argument is specified:
     if cmd_args.validate_input:
         bad_files = set()
-        # TODO: import tqdm somewhere
-        for f in tqdm(input_files + ([ref] if ref and ref != "!" else [])):
+        for f in input_files + ([ref] if ref and ref != "!" else []):
             try:
                 records = list(SeqIO.parse(f, "fasta"))
             except:
@@ -1371,7 +1351,7 @@ SETTINGS:
                 hdr, seq = seq.split("\n",1)
             except ValueError:
                 continue
-            seq_dict[hdr] = nt
+            seq_dict[hdr] = seq
             seq_len[hdr] = len(seq) - seq.count('\n')
         seq_len_sort = sorted(seq_len.iteritems(), key=operator.itemgetter(1))
         seq_len_sort.reverse()
