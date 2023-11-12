@@ -344,6 +344,11 @@ def parse_args():
         type = float,
         default = 90,
         help = "Min ANI value to allow for genome recruitment.")
+    MUMi_args.add_argument(
+        "--min-ref-cov",
+        type = float,
+        default = 90,
+        help = "Minimum percent of reference segments to be covered in FastANI")
     MUMi_rec_prog.add_argument(
         "--use-mash",
         action = "store_true",
@@ -1085,7 +1090,7 @@ SETTINGS:
                         for line in results:
                             # FastANI results file -> Query, Ref, ANI val, extra stuff,,,
                             line = line.split('\t')
-                            if float(line[2]) >= min_ani_cutoff:
+                            if float(line[2]) >= min_ani_cutoff and (int(line[3]) / int(line[4]))/100 > args.min_ref_cov:
                                 genome_to_genomes[line[0]].add(line[1])
 
                         # for g in genome_to_genomes:
