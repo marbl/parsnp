@@ -203,7 +203,7 @@ def parallelPhiWrapper(params):
 def run_command(command,ignorerc=0):
    global SIGINT
    logger.debug(command)
-   result = subprocess.run(shlex.split(command), stderr=subprocess.PIPE)
+   result = subprocess.run(shlex.split(command), stderr=subprocess.PIPE, stdout=subprocess.PIPE)
    rc = result.returncode
 
    fstdout = result.stdout
