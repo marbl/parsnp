@@ -9,6 +9,7 @@ import os, sys, string, getopt, random,subprocess, time,operator, math, datetime
 from collections import defaultdict
 import csv
 import shutil
+import shlex
 from tempfile import TemporaryDirectory
 import re
 import logging
@@ -202,12 +203,11 @@ def parallelPhiWrapper(params):
 def run_command(command,ignorerc=0):
    global SIGINT
    logger.debug(command)
-   p = subprocess.Popen(command, shell=True, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE,close_fds=True,executable="/bin/bash")
-   fstdout,fstderr = p.communicate()
-   rc = p.returncode
+   result = subprocess.run(shlex.split(command), stderr=subprocess.PIPE)
+   rc = result.returncode
 
-   fstdout = fstdout.decode("utf-8")
-   fstderr = fstderr.decode("utf-8")
+   fstdout = result.stdout
+   fstderr = result.stderr
    if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
       logger.critical("""The following command failed:
       >>$ {}
