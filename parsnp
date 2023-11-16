@@ -1293,11 +1293,16 @@ SETTINGS:
                         stderr=open(os.path.join(outputDir, "mash.err"), 'w')).decode('utf-8')
                     finalfiles = [line.split('\t')[0] for line in mash_out.split('\n')[1:] if line != '' and len(line.split('\t')) > 1 and line.split('\t')[1].strip() != '']
                 elif use_ani:
+                    # Guarantee at least 100 segments in FastANI (unless it requires a fragment length < 500)
+                    fraglen = min(
+                        1000, 
+                        max(500, reflen // 100))
                     if randomly_selected_ref:
                         subprocess.check_call([
                                 "fastANI",
                                 "--ql", all_genomes_fname,
                                 "--rl", all_genomes_fname,
+                                "--fragLen", str(fraglen),
                                 "-t", str(threads),
                                 "-o", os.path.join(outputDir, "fastANI.tsv")],
                             stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
@@ -1306,19 +1311,19 @@ SETTINGS:
                                 "fastANI",
                                 "-q", ref,
                                 "--rl", all_genomes_fname,
+                                "--fragLen", str(fraglen),
                                 "-t", str(threads),
                                 "-o", os.path.join(outputDir, "fastANI.tsv")],
                             stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
-                    genome_to_genomes = defaultdict(set)
+
+                    genome_to_genomes = defaultdict(list)
                     with open(os.path.join(outputDir, "fastANI.tsv")) as results:
                         for line in results:
                             # FastANI results file -> Query, Ref, ANI val, extra stuff,,,
                             line = line.split('\t')
-                            if float(line[2]) >= min_ani_cutoff and (int(line[3]) / int(line[4]))/100 > args.min_ref_cov:
-                                genome_to_genomes[line[0]].add(line[1])
+                            if float(line[2]) >= min_ani_cutoff and (int(line[3]) / int(line[4])) * 100 > args.min_ref_cov:
+                                genome_to_genomes[line[0]].append(line[1])
 
-                        # for g in genome_to_genomes:
-                            # print(len(g))
                         ani_ref = max(genome_to_genomes, key=(lambda key: len(genome_to_genomes[key])))
                         if autopick_ref:
                             auto_ref = ani_ref
