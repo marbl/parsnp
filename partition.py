@@ -1,5 +1,6 @@
 import argparse
 import subprocess
+import shlex
 import re
 import bisect
 import tempfile
@@ -442,15 +443,16 @@ def merge_blocks(
 
 
 
-def run_command(cmd: str) -> None:
+def run_command(cmd: str, check: bool=True) -> None:
     """
     Runs the provided command string.
 
     Args:
-        cmd: The command to be run.
+        cmd:    The command to be run.
+        check:  Raise exception if subprocess fails 
     """
-    subprocess.run(cmd, shell=True, check=True)
-    return
+    res = subprocess.run(cmd, shell=True, check=check)
+    return res.returncode
 
 def parse_args() -> None:
     """
@@ -773,12 +775,20 @@ if __name__ == "__main__":
         parsnp_commands.append(chunk_command)
 
     print("Running partitions...")
+    good_chunks = set(chunk_labels)
+    run_command_nocheck = partial(run_command, check=False)
     with Pool(args.threads) as pool:
-        list(tqdm(pool.imap_unordered(run_command, parsnp_commands, chunksize=1), total=len(parsnp_commands)))
+        return_codes = tqdm(pool.imap(run_command_nocheck, parsnp_commands, chunksize=1), total=len(parsnp_commands))
+        for cl, rc in zip(chunk_labels, return_codes):
+            if rc != 0:
+                print(f"ERROR:\tPartition {cl} failed...")
+                good_chunks.remove(cl)
+        
+    chunk_labels = list(good_chunks)
 
     print("Computing intersection of all partition LCBs...")
-    chunk_to_invervaldict = get_chunked_intervals(partition_output_dir, chunk_labels)
-    intersected_interval_dict = get_intersected_intervals(chunk_to_invervaldict)
+    chunk_to_intvervaldict = get_chunked_intervals(partition_output_dir, chunk_labels)
+    intersected_interval_dict = get_intersected_intervals(chunk_to_intvervaldict)
     
     print("Trimming partitioned XMFAs back to intersected intervals...")
     num_clusters = trim_xmfas(partition_output_dir, chunk_labels, intersected_interval_dict, args.threads)
