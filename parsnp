@@ -596,19 +596,26 @@ def parse_genbank_files(cmd_args, output_dir):
     return genbank_ref, genbank_files
 
 
-def check_for_dependencies(use_fasttree):
+def check_for_dependencies(use_phipack, use_fasttree):
     '''
     Routine to check for the main dependencies for parsnp and exits the program if one is missing.
 
-    That includes 1) Profile, 2) Raxml, 3) harvesttools, and if the use_fasttree argument has been
-    given it also includes one of the main FastTree executables.
+    That includes 
+    1) Profile (if -x or --xtrafast), 
+    2) Raxml (if !use_fasttree) else one of the main FastTree executables 
+    3) harvesttools
     '''
     missing = False
-    # Has to have ALL of these:
-    for exe in ["Profile", "raxmlHPC-PTHREADS", "harvesttools"]:
+    exe = "harvesttools"
+    if shutil.which(exe) is None:
+        missing = True
+        logger.critical("{} not in system path!".format(exe))
+    if use_phipack:
+        exe = "Profile"
         if shutil.which(exe) is None:
             missing = True
             logger.critical("{} not in system path!".format(exe))
+
     if use_fasttree:
         has_fasttree = False
         # has to have AT LEAST one of these
@@ -618,6 +625,12 @@ def check_for_dependencies(use_fasttree):
         if not has_fasttree:
             logger.critical("No fasttree executable found in system path!".format(exe))
         missing = missing or (not has_fasttree)
+    else:
+        exe = "raxmlHPC-PTHREADS"
+        if shutil.which(exe) is None:
+            missing = True
+            logger.critical("{} not in system path!".format(exe))
+
     if missing:
         sys.exit(1)
 
@@ -1075,7 +1088,7 @@ if __name__ == "__main__":
         handler.setLevel(logging_level)
 
     # 2) Check for dependencies
-    check_for_dependencies(use_fasttree)
+    check_for_dependencies(xtrafast, use_fasttree)
 
     # 3) Create output dir
     create_output_directory(outputDir)
