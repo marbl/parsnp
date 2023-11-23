@@ -18,13 +18,15 @@ import multiprocessing
 import argparse
 import signal
 import inspect
-from multiprocessing import *
+from multiprocessing import Pool
 from Bio import SeqIO
 from glob import glob
 from pathlib import Path
 
 
 import extend as ext
+import partition
+from tqdm import tqdm
 
 __version__ = "1.7.4"
 reroot_tree = True #use --midpoint-reroot
@@ -201,14 +203,14 @@ def parallelPhiWrapper(params):
 
 
 def run_command(command,ignorerc=0):
-   global SIGINT
-   logger.debug(command)
-   result = subprocess.run(shlex.split(command), stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-   rc = result.returncode
+    global SIGINT
+    logger.debug(command)
+    result = subprocess.run(shlex.split(command), stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    rc = result.returncode
 
-   fstdout = result.stdout
-   fstderr = result.stderr
-   if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
+    fstdout = result.stdout.decode()
+    fstderr = result.stderr.decode()
+    if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
       logger.critical("""The following command failed:
       >>$ {}
       Please veryify input data and restart Parsnp.
@@ -221,9 +223,10 @@ def run_command(command,ignorerc=0):
       {}""".format(command, fstdout, fstderr))
 
       sys.exit(rc)
-   else:
+    else:
       logger.debug(fstdout)
       logger.debug(fstderr)
+    return rc
 
 
 def is_valid_file_path(parser, arg):
@@ -407,13 +410,25 @@ def parse_args():
         action = "store_true",
         help = "Output unaligned regions")
 
-    recombination_args = parser.add_argument_group("Recombination filtration")
+    # recombination_args = parser.add_argument_group("Recombination filtration")
     #TODO -x was a duplicate flag but no longer parsed as filter-phipack-snps in the current parsnp version
     # recombination_args.add_argument(
             # "-x",
             # "--filter-phipack-snps",
             # action = "store_true",
             # help = "Enable filtering of SNPs located in PhiPack identified regions of recombination")
+
+    partition_args = parser.add_argument_group("Sequence Partitioning")
+    partition_args.add_argument(
+        "--partition-runs",
+        action='store_true',
+        help="Evenly split input sequences across separate runs of parsnp, then merge results")
+    partition_args.add_argument(
+        "--partition-size",
+        type=int,
+        default=50,
+        help="Number of sequences in a partitioned run of parsnp")
+
     extend_args = parser.add_argument_group("LCB Extension")
     extend_args.add_argument(
         "--extend-lcbs",
@@ -735,7 +750,8 @@ def process_input_files(cmd_args, input_files):
                 logger.error("Extending LCBs does not currently work with multi-contig inputs yet")
                 sys.exit(1)
             for record in records:
-                if any(c not in "GATCRYWSMKHBVDN" + "GATCRYWSMKHBVDN".lower() for c in record.seq):
+                valid_chars = "GATCRYWSMKHBVDN"
+                if any(c not in valid_chars + valid_chars.lower() for c in record.seq):
                     logger.error("Genome sequence {} has invalid characters {}! Skip!".format(f, set(str(
                         record.seq)) - set("AGCTNagctn")))
                     bad_files.add(f)
@@ -984,6 +1000,9 @@ def write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, final
 
     '''
     # global file_string, cnt, f, inifiled_closest, inifile
+    # Rewrite output dir
+    comp = re.compile(r"(.*)\noutdir=(.*)\n(.*)")
+    inifiled = comp.sub(fr"\1\noutdir={outputDir}\n\3", inifiled)
 
     if len(finalfiles) < 1 or ref == "":
         logger.critical("Parsnp requires 2 or more genomes to run, exiting\n")
@@ -1020,6 +1039,23 @@ def write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, final
     inifile_closest.write(inifiled_closest)
     inifile_closest.close()
 
+
+# Assumes outputDir/parsnpAligner.ini exists
+def run_parsnp_aligner(outputDir):
+    inifile = f"{outputDir}/parsnpAligner.ini"
+    if not os.path.exists(inifile):
+        logger.error("ini file %s does not exist!\n"%(inifile))
+        sys.exit(1)
+    command = "%s/bin/parsnp_core %s"%(PARSNP_DIR,inifile)
+    rc = run_command(command, ignorerc=1)
+
+    if not os.path.exists(os.path.join(outputDir, "parsnpAligner.xmfa")) or rc != 0:
+        logger.critical("Set of recruited genomes are too divergent for parsnp, please reduce MUMi (%f) and relaunch\n"%(float(mumidistance)))
+    else:
+        shutil.move(
+                os.path.join(outputDir, "parsnpAligner.xmfa"),
+                os.path.join(outputDir, "parsnp.xmfa"))
+    return rc
 
 
 #   Most of the control flow for the whole Parnsp program runs through this script, which is probably not an
@@ -1307,7 +1343,7 @@ SETTINGS:
                 elif use_ani:
                     # Guarantee at least 100 segments in FastANI (unless it requires a fragment length < 500)
                     fraglen = min(
-                        1000, 
+                        3000, 
                         max(500, reflen // 100))
                     if randomly_selected_ref:
                         subprocess.check_call([
@@ -1386,201 +1422,221 @@ SETTINGS:
         ffo.close()
         ref = auto_ref
 
-    # Editing the ini file to be used for parnsp-aligner (which is different from parsnip as a mumi finder)
-    if not inifile_exists:
-        write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, finalfiles, ref)
+    totseqs = len(finalfiles)
 
     #3)run parsnp (cores, grid?)
-    logger.info("Running Parsnp multi-MUM search and libMUSCLE aligner...")
-    blocks_dir = os.path.join(outputDir, "blocks")
-    if not os.path.exists(blocks_dir):
-        os.mkdir(blocks_dir)
-    command = ""
-    run_parsnp = 1
-    if run_parsnp:
-        successful_run = False
-        maxruns = 2
-        runcnt = 0
-        while not successful_run:
-            if not inifile_exists:
-                if command == "" and xtrafast and 0: #THIS WILL NEVER RUN (xtrafast is out of date I think)
-                    command = "%s/parsnpA_fast %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
-                elif command == "":
-                    command = "%s/bin/parsnp_core %sparsnpAligner.ini"%(PARSNP_DIR,outputDir+os.sep)
-                else:
-                    command = "%s/bin/parsnp_core %spsnn.ini"%(PARSNP_DIR,outputDir+os.sep)
-            else:
-                if not os.path.exists(inifile):
-                    logger.error("ini file %s does not exist!\n"%(inifile))
-                    sys.exit(1)
-                command = "%s/bin/parsnp_core %s"%(PARSNP_DIR,inifile)
-            run_command(command)
+    if not args.partition_runs:
+        # Editing the ini file to be used for parnsp-aligner (which is different from parsnip as a mumi finder)
+        if not inifile_exists:
+            write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, finalfiles, ref)
 
-            if not os.path.exists(os.path.join(outputDir, "parsnpAligner.xmfa")):
-                successful_run = False
-                runcnt += 1
-                if runcnt >= 2:
-                    logger.critical("Set of recruited genomes are too divergent for parsnp, please reduce MUMi (%f) and relaunch\n"%(float(mumidistance)))
-                    sys.exit(1)
-            else:
-                successful_run = True
-                runcnt += 1
-                break
-        shutil.move(
-                os.path.join(outputDir, "parsnpAligner.xmfa"),
-                os.path.join(outputDir, "parsnp.xmfa"))
+        logger.info("Running Parsnp multi-MUM search and libMUSCLE aligner...")
+        run_parsnp_aligner(outputDir)
 
-    #get coverage
-    coverage = 0
-    totlength = 0
-    totseqs = 0
-    try:
-        cf = open(os.path.join(outputDir, "parsnpAligner.log"))
-        for line in cf:
-            if "Total coverage among all sequences:" in line:
-                coverage = line.split(":",1)[-1].replace("\n","")
-                coverage = float(coverage.replace("%",""))/100.0
-            elif "Length:" in line:
-                totlength += int(line.split(":",1)[-1].replace("\n","").split("bps")[0])
-                totseqs += 1
-    except IOError:
-        logger.critical("ParsnpAligner.log missing, parsnpAligner failed.")
-        sys.exit(1)
+        blocks_dir = os.path.join(outputDir, "blocks")
+        if not os.path.exists(blocks_dir):
+            os.mkdir(blocks_dir)
 
-    #update thresholds
-    if coverage < 0.1 and not curated:
-        if coverage <= 0.01:
-            logger.critical("""Aligned regions cover less than 1% of reference genome, something is not right
-Adjust params and rerun. If issue persists please submit a GitHub issue""")
+        #get coverage
+        coverage = 0
+        totlength = 0
+        try:
+            cf = open(os.path.join(outputDir, "parsnpAligner.log"))
+            for line in cf:
+                if "Total coverage among all sequences:" in line:
+                    coverage = line.split(":",1)[-1].replace("\n","")
+                    coverage = float(coverage.replace("%",""))/100.0
+                elif "Length:" in line:
+                    totlength += int(line.split(":",1)[-1].replace("\n","").split("bps")[0])
+        except IOError:
+            logger.critical("ParsnpAligner.log missing, parsnpAligner failed.")
             sys.exit(1)
+
+        #update thresholds
+        if coverage < 0.1 and not curated:
+            if coverage <= 0.01:
+                logger.critical("""Aligned regions cover less than 1% of reference genome, something is not right
+    Adjust params and rerun. If issue persists please submit a GitHub issue""")
+                sys.exit(1)
+            else:
+                logger.warning("""Aligned regions cover less than 10% of reference genome!
+    Please verify recruited genomes are all strain of interest""")
         else:
-            logger.warning("""Aligned regions cover less than 10% of reference genome!
-Please verify recruited genomes are all strain of interest""")
-    else:
-        pass
-    #print("-->Getting list of LCBs.."
-    allbfiles = glob(os.path.join(blocks_dir, "b*/*"))
-    blockfiles = []
-    block_startpos = []
-    block_dict = {}
-    for f in allbfiles:
-        if os.path.isfile(f):
-            if "seq.fna" in f:
-                blockfiles.append(f)
-                lf = open(f, 'r')
-                header = lf.readline()
-                if header[0] != ">":
-                    logger.error("Error with LCB: %s\n"%(f))
-                    continue
+            pass
+        #print("-->Getting list of LCBs.."
+        allbfiles = glob(os.path.join(blocks_dir, "b*/*"))
+        blockfiles = []
+        block_startpos = []
+        block_dict = {}
+        for f in allbfiles:
+            if os.path.isfile(f):
+                if "seq.fna" in f:
+                    blockfiles.append(f)
+                    lf = open(f, 'r')
+                    header = lf.readline()
+                    if header[0] != ">":
+                        logger.error("Error with LCB: %s\n"%(f))
+                        continue
 
-                inf = header.split("+",1)[0]
+                    inf = header.split("+",1)[0]
 
-                rseq = ""
-                while 1:
-                    lff = lf.readline()
-                    if lff[0] == ">":
-                        break
-                    rseq += lff.replace("\n","")
+                    rseq = ""
+                    while 1:
+                        lff = lf.readline()
+                        if lff[0] == ">":
+                            break
+                        rseq += lff.replace("\n","")
 
-                spos,epos = inf.split(":",1)[-1].split("-",1)
-                block_startpos.append(int(spos))
-                block_dict[f] = [int(spos),int(epos), rseq]
-                lf.close()
-    # This is set to False earlier so not used:
-    run_repeat_filter = filtreps
+                    spos,epos = inf.split(":",1)[-1].split("-",1)
+                    block_startpos.append(int(spos))
+                    block_dict[f] = [int(spos),int(epos), rseq]
+                    lf.close()
 
-    #initiate parallelPhiPack tasks
-    run_recomb_filter = 0
-
-    if xtrafast:
-        run_recomb_filter = 1
-    else:
+        #initiate parallelPhiPack tasks
         run_recomb_filter = 0
 
-    recombination_sites = {}
-    bedfile = ""
-    bedfile_dict = {}
-    if run_recomb_filter and len(blockfiles) > 0:
-        logger.info("Running PhiPack on LCBs to detect recombination...")
-        bedfile = open(os.path.join(outputDir, "parsnp.rec"), 'w')
-        tasks = []
-        processed = []
-        for icnt, f in enumerate(blockfiles):
-            seq1 = ""
-            try:
-                bf = open(f, 'r')
-                seq1 = bf.read().split(">")[1].split("\n",1)[-1]
-                seq1 = seq1.replace("\n","")
-                bf.close()
-            except IOError:
-                pass
+        if xtrafast:
+            run_recomb_filter = 1
+        else:
+            run_recomb_filter = 0
 
-            processed.append(f)
-            params = {}
-            path, f = f.rsplit(os.path.sep,1)
-            params["jobID"] = len(tasks)
-            params["query"] = f
-            params["seqlen"] = len(seq1)
-            params["spos"] = block_startpos[icnt]
-            params["dir"] = path
-            params["output"] = os.path.join(path, "Profile.csv")
-            tasks.append(params)
-
-        #run parallelPhiPack
-        pool = Pool(processes=int(threads))
-        result = pool.map_async(parallelPhiWrapper,tasks).get()
-
-        for i in result:
-            if (i["status"] == 1):
-                #process output
-                recregions = ""
-                block_spos = tasks[i["jobID"]]["spos"]
+        recombination_sites = {}
+        bedfile = ""
+        bedfile_dict = {}
+        if run_recomb_filter and len(blockfiles) > 0:
+            logger.info("Running PhiPack on LCBs to detect recombination...")
+            bedfile = open(os.path.join(outputDir, "parsnp.rec"), 'w')
+            tasks = []
+            processed = []
+            for icnt, f in enumerate(blockfiles):
+                seq1 = ""
                 try:
-                    recregions = open(tasks[i["jobID"]]["output"],'r').read()
+                    bf = open(f, 'r')
+                    seq1 = bf.read().split(">")[1].split("\n",1)[-1]
+                    seq1 = seq1.replace("\n","")
+                    bf.close()
                 except IOError:
-                    logger.error("File %s doesn't exist, no rec regions or error in PhiPack\n"%(tasks[i["jobID"]]["output"]))
-                    continue
-                reclines = recregions.split("\n")
-                prevpos = 0
+                    pass
 
-                for line in reclines:
+                processed.append(f)
+                params = {}
+                path, f = f.rsplit(os.path.sep,1)
+                params["jobID"] = len(tasks)
+                params["query"] = f
+                params["seqlen"] = len(seq1)
+                params["spos"] = block_startpos[icnt]
+                params["dir"] = path
+                params["output"] = os.path.join(path, "Profile.csv")
+                tasks.append(params)
+
+            #run parallelPhiPack
+            pool = Pool(processes=int(threads))
+            result = pool.map_async(parallelPhiWrapper,tasks).get()
+
+            for i in result:
+                if (i["status"] == 1):
+                    #process output
+                    recregions = ""
+                    block_spos = tasks[i["jobID"]]["spos"]
                     try:
-                        pos,eval = line.split(",")
-                    except ValueError:
+                        recregions = open(tasks[i["jobID"]]["output"],'r').read()
+                    except IOError:
+                        logger.error("File %s doesn't exist, no rec regions or error in PhiPack\n"%(tasks[i["jobID"]]["output"]))
                         continue
-                    pos = int(pos)
-                    eval = float("%.5f"%(float(eval)))
-                    if eval < 0.01 and eval >= 0:
-                        idx = 0
-                        srpos = 0
-                        if pos-50 > 0:
-                            srpos = (pos-50)+block_spos
-                        else:
-                            srpos = block_spos
-                        eval = abs(eval)
-                        if not multifasta:
-                            bedfile_dict[srpos] = "1\t%s\t%s\tREC\t%.3f\t+\n"%(srpos,pos+50+block_spos,eval)
-                        else:
-                            chrnum = 1
-                            chr_spos = list(ref_seqs.keys())
-                            for cs in ref_seqs:
-                                if block_spos < len(chr_spos):
-                                    chrnum = ref_seqs[cs]
-                            bedfile_dict[srpos] = "%d\t%s\t%s\tREC\t%.3f\t+\n"%(chrnum,srpos,pos+50+block_spos,eval)
+                    reclines = recregions.split("\n")
+                    prevpos = 0
 
-                qfile = tasks[i["jobID"]]["query"]
+                    for line in reclines:
+                        try:
+                            pos,eval = line.split(",")
+                        except ValueError:
+                            continue
+                        pos = int(pos)
+                        eval = float("%.5f"%(float(eval)))
+                        if eval < 0.01 and eval >= 0:
+                            idx = 0
+                            srpos = 0
+                            if pos-50 > 0:
+                                srpos = (pos-50)+block_spos
+                            else:
+                                srpos = block_spos
+                            eval = abs(eval)
+                            if not multifasta:
+                                bedfile_dict[srpos] = "1\t%s\t%s\tREC\t%.3f\t+\n"%(srpos,pos+50+block_spos,eval)
+                            else:
+                                chrnum = 1
+                                chr_spos = list(ref_seqs.keys())
+                                for cs in ref_seqs:
+                                    if block_spos < len(chr_spos):
+                                        chrnum = ref_seqs[cs]
+                                bedfile_dict[srpos] = "%d\t%s\t%s\tREC\t%.3f\t+\n"%(chrnum,srpos,pos+50+block_spos,eval)
 
-            elif i["status"] != 2:
-                logger.critical("Parallel phipack job %d failed\n"%(i["jobID"]))
-                raise IOError
+                    qfile = tasks[i["jobID"]]["query"]
 
-        pool.close()
-        pool.join()
-        brkeys = list(bedfile_dict.keys())
-        brkeys.sort()
-        for key in brkeys:
-            bedfile.write(bedfile_dict[key])
-        bedfile.close()
+                elif i["status"] != 2:
+                    logger.critical("Parallel phipack job %d failed\n"%(i["jobID"]))
+                    raise IOError
+
+            pool.close()
+            pool.join()
+            brkeys = list(bedfile_dict.keys())
+            brkeys.sort()
+            for key in brkeys:
+                bedfile.write(bedfile_dict[key])
+            bedfile.close()
+
+    else:
+        full_query_list_path = f"{outputDir}/input-list.txt"
+        with open(full_query_list_path, 'w') as input_list_handle:
+            for qf in finalfiles:
+                input_list_handle.write(qf + "\n")
+
+        partition_output_dir = f"{outputDir}/partition"
+        partition_list_dir = f"{partition_output_dir}/input-lists"
+        os.makedirs(partition_list_dir, exist_ok=True)
+        run_command(f"split -l {args.partition_size} -a 5 --additional-suffix '.txt' {full_query_list_path} {partition_list_dir}/{partition.CHUNK_PREFIX}-")
+
+        chunk_label_parser = re.compile(f'{partition.CHUNK_PREFIX}-(.*).txt')
+        chunk_labels = []
+        for partition_list_file in os.listdir(partition_list_dir):
+            chunk_labels.append(chunk_label_parser.search(partition_list_file).groups()[0])
+
+        chunk_output_dirs = []
+        for cl in chunk_labels:
+            chunk_output_dir = f"{partition_output_dir}/{partition.CHUNK_PREFIX}-{cl}-out"
+            os.makedirs(chunk_output_dir, exist_ok=True)
+            chunk_output_dirs.append(chunk_output_dir)
+            with open(f"{partition_list_dir}/{partition.CHUNK_PREFIX}-{cl}.txt", 'r') as partition_file:
+                partition_seq_files = [f for f in partition_file.read().splitlines()]
+
+            write_inifile_2(inifiled, chunk_output_dir, unaligned, args, auto_ref, query, partition_seq_files, ref)
+
+        logger.info("Running partitions...")
+        good_chunks = set(chunk_labels)
+        # run_command_nocheck = partial(run_command, check=False)
+        with Pool(args.threads) as pool:
+            # return_codes = tqdm(pool.imap(run_command_nocheck, parsnp_commands, chunksize=1), total=len(parsnp_commands))
+            return_codes = tqdm(pool.imap(run_parsnp_aligner, chunk_output_dirs))
+            for cl, rc in zip(chunk_labels, return_codes):
+                if rc != 0:
+                    logger.error("Partition {cl} failed...")
+                    good_chunks.remove(cl)
+            
+        chunk_labels = list(good_chunks)
+
+        logger.info("Computing intersection of all partition LCBs...")
+        chunk_to_intvervaldict = partition.get_chunked_intervals(partition_output_dir, chunk_labels)
+        intersected_interval_dict = partition.get_intersected_intervals(chunk_to_intvervaldict)
+        
+        logger.info("Trimming partitioned XMFAs back to intersected intervals...")
+        num_clusters = partition.trim_xmfas(partition_output_dir, chunk_labels, intersected_interval_dict, args.threads)
+
+        xmfa_out_f =  f"{outputDir}/parsnp.xmfa"
+
+        logger.info(f"Merging trimmed XMFA files into a single XMFA at {xmfa_out_f}")
+        partition.merge_xmfas(partition_output_dir, chunk_labels, xmfa_out_f, num_clusters, args.threads)
+
+
 
     run_lcb_trees = 0
 
@@ -1637,10 +1693,8 @@ Please verify recruited genomes are all strain of interest""")
         else:
             run_command(f"harvesttools -q -o {outputDir}/parsnp.ggr -f {ref} -x {parsnp_output}")
 
-        if run_recomb_filter:
+        if not args.partition_runs and run_recomb_filter:
             run_command("harvesttools -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir))
-        if run_repeat_filter:
-            run_command("harvesttools -q -b %s,REP,\"Intragenomic repeats > 100bp\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(repfile,outputDir,outputDir))
 
         run_command("harvesttools -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
         if generate_vcf:

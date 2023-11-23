@@ -9,7 +9,7 @@ import copy
 import math
 from multiprocessing import Pool
 from functools import partial
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, Counter
 from typing import List, Tuple, Mapping, TextIO
 
 import numpy as np
@@ -21,6 +21,7 @@ from Bio.Align import MultipleSeqAlignment
 from tqdm import tqdm
 
 # from logger import logger
+from pprint import pprint
 
 
 FASTA_SUFFIX_LIST = ".fasta, .fas, .fa, .fna, .ffn, .faa, .mpfa, .frn".split(", ")
@@ -59,31 +60,26 @@ def interval_intersection(A: List[IntervalType], B: List[IntervalType]) -> List[
     return ans
 
 
-def get_interval(aln: MultipleSeqAlignment, seqidx: int) -> Tuple[int, IntervalType]:
+def get_interval(aln: MultipleSeqAlignment) -> Tuple[int, IntervalType]:
     """
-    Get the interval of a desired sequence from an alignment
+    Get the interval of the first sequence (reference) in a MultipleSeqAlignment object
 
     Args:
         aln:    A MultipleSeqAlignment object representing an LCB
-        seqidx: The idx of the sequence whose interval to return
     Returns:
         A tuple (A, B) where A is the contig idx of the sequence at seqidx, and B is the interval
     """
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)/.*')
-    for seq in aln:
-        if int(seq.name) == seqidx:
-            aln_len = seq.annotations["end"] - seq.annotations["start"] + 1
-            cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(seq.id).groups()]
+    seq = aln[0]
+    aln_len = seq.annotations["end"] - seq.annotations["start"] + 1
+    cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(seq.id).groups()]
 
-            if seq.annotations["strand"] == -1:
-                startpos, endpos = startpos - aln_len, startpos
-            else:
-                endpos = startpos + aln_len
-                
-            return (contig_idx, (startpos, endpos))
-    print(f"ERROR:\tSequence with idx={seqidx} not found in the LCB!")
-    print(MultipleSeqAlignment)
-    raise
+    if seq.annotations["strand"] == -1:
+        startpos, endpos = startpos - aln_len, startpos
+    else:
+        endpos = startpos + aln_len
+        
+    return (contig_idx, (startpos, endpos))
 
         
 
@@ -96,7 +92,7 @@ def cut_overlaps(ilist: List[IntervalType]) -> None:
         ilist: List of intervals to be cut
     """
     for i in range(len(ilist) - 1):
-        if ilist[i][1] >= ilist[i+1][0]:
+        if ilist[i][1] > ilist[i+1][0]:
             ilist[i+1] = (ilist[i][1]+1, ilist[i+1][1])
 
 
@@ -533,7 +529,7 @@ def get_chunked_intervals(partition_output_dir: str, chunk_labels: List[str])\
         chunk_to_invervaldict[chunk_label] = defaultdict(list)
         for aln in orig_alns:
             # Get reference idx and the interval of the alignment wrt the reference contig
-            ref_cidx, interval = get_interval(aln, 1)
+            ref_cidx, interval = get_interval(aln)
             chunk_to_invervaldict[chunk_label][ref_cidx].append(interval)
             
         # Sort the intervals. (They should be sorted already, but worth double checking)
@@ -621,7 +617,7 @@ def trim_single_xmfa(
                 write_aln_to_xmfa(new_aln, trimmed_out)
     
     num_clusters = cluster_start - 1
-    return num_clusters
+    return (xmfa_file, num_clusters)
 
 
 def trim_xmfas(
@@ -646,11 +642,12 @@ def trim_xmfas(
     with Pool(threads) as pool:
         num_clusters_per_xmfa = list(tqdm(pool.imap_unordered(trim_partial, orig_xmfa_files), total=len(orig_xmfa_files)))
         #TODO clean up
-        if not all(num_clusters_per_xmfa[0] == nc for nc in num_clusters_per_xmfa):
-            print(num_clusters_per_xmfa)
+        if not all(num_clusters_per_xmfa[0][1] == nc for xmfa, nc in num_clusters_per_xmfa):
+            pprint(num_clusters_per_xmfa)
+            print(Counter(nc for xmfa, nc in num_clusters_per_xmfa))
             print("ERROR: One of the partitions has a different number of clusters after trimming...")
             raise
-    return num_clusters_per_xmfa[0]
+    return num_clusters_per_xmfa[0][1]
 
 
 def merge_single_LCB(
@@ -774,7 +771,7 @@ if __name__ == "__main__":
         chunk_command += f" > {chunk_output_dir}/parsnp.stdout 2> {chunk_output_dir}/parsnp.stderr"
         parsnp_commands.append(chunk_command)
 
-    print("Running partitions...")
+    # print("Running partitions...")
     good_chunks = set(chunk_labels)
     run_command_nocheck = partial(run_command, check=False)
     with Pool(args.threads) as pool:
@@ -798,3 +795,5 @@ if __name__ == "__main__":
 
     print(f"Merging trimmed XMFA files into a single XMFA at {xmfa_out_f}")
     merge_xmfas(partition_output_dir, chunk_labels, xmfa_out_f, num_clusters, args.threads)
+
+
