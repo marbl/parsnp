@@ -854,7 +854,7 @@ def check_ref_genome_aligned(ref):
     return reflen
 
 
-def parse_input_files(input_files, curated):
+def parse_input_files(input_files, curated, validate_input):
     '''
     Goes through and actually parses all the input files as fasta's and makes sure they don't raise any
     errors that way. Also calculates the total genome length and uses that to determine if any of them
@@ -872,16 +872,17 @@ def parse_input_files(input_files, curated):
     fnafiles = []
     for input_file in input_files[:]:
         # If biopython cannot parse the input as a fasta, kick it out of the list and move on:
-        try:
-            record = list(SeqIO.parse(input_file, "fasta"))
-            if len(record) == 0:
+        if validate_input:
+            try:
+                record = list(SeqIO.parse(input_file, "fasta"))
+                if len(record) == 0:
+                    input_files.remove(input_file)
+                    logger.error(f"{input_file} is an empty file!")
+                    continue
+            except:
                 input_files.remove(input_file)
-                logger.error(f"{input_file} is an empty file!")
+                logger.error(f"Could not parse {input_file}!")
                 continue
-        except:
-            input_files.remove(input_file)
-            logger.error(f"Could not parse {input_file}!")
-            continue
 
         # Old version of the parser:
         with open(input_file, 'r') as ff:
@@ -1201,7 +1202,7 @@ SETTINGS:
     reflen = check_ref_genome_aligned(ref)
 
     # Uses biopython to parse the inputs (just checking it again)
-    input_files, fnafiles, fnaf_sizes = parse_input_files(input_files, curated)
+    input_files, fnafiles, fnaf_sizes = parse_input_files(input_files, curated, args.validate_input)
 
     # if ref in fnafiles:
         # fnafiles.remove(ref)
@@ -1357,8 +1358,8 @@ SETTINGS:
                     else:
                         subprocess.check_call([
                                 "fastANI",
-                                "-q", ref,
-                                "--rl", all_genomes_fname,
+                                "-r", ref,
+                                "--ql", all_genomes_fname,
                                 "--fragLen", str(fraglen),
                                 "-t", str(threads),
                                 "-o", os.path.join(outputDir, "fastANI.tsv")],
@@ -1370,7 +1371,7 @@ SETTINGS:
                             # FastANI results file -> Query, Ref, ANI val, extra stuff,,,
                             line = line.split('\t')
                             if float(line[2]) >= min_ani_cutoff and (int(line[3]) / int(line[4])) * 100 > args.min_ref_cov:
-                                genome_to_genomes[line[0]].append(line[1])
+                                genome_to_genomes[line[1]].append(line[0])
 
                         ani_ref = max(genome_to_genomes, key=(lambda key: len(genome_to_genomes[key])))
                         if autopick_ref:
