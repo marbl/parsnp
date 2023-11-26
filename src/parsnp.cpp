@@ -917,130 +917,161 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
         }// end for ( vector<Cluster>::iterator ct = this->clusters.begin(); ct != this->clusters.end(); ct++)
     }
 
+    int prev_end = 0;
     for ( ssize z = 0; z < allclusters.size(); z++)
     {
-	    Cluster ct = allclusters.at(z);
-	    if (ct.type == 1 && ct.mums.size() > 0 && doalign != 0 && tempalign2[z][0].size() > (this->c * 1))
+        Cluster ct = allclusters.at(z);
+        if (ct.type == 1 && ct.mums.size() > 0 && doalign != 0 && tempalign2[z][0].size() > (this->c * 1))
         {
-            sprintf(b,"%d",(int)z+1);// C-style string formed without null
-            ofstream clcbfile;
-            if (recomb_filter)
+            // Trim overlap w/ previous LCB, if any
+            int lcb_start = ct.start[0] + 1; // Inclusive
+            int lcb_end   = ct.end[0];       // Non-inclusive
+            int overlap = std::max(0, prev_end - lcb_start);
+            if (overlap > 0)
             {
-                string lcbdir = lcbprefix + b;
-                string lcbfile = lcbdir +"/"+"seq.fna";
-                clcbfile.open( lcbfile.c_str());
-            }
-            for ( ssize i = 0; i < nnum; i++)
-            {
-                if ( 1)
+                int cols_to_trim = 0;
+                int pos = 0;
+                while (overlap)
                 {
-                    int width = 80;
-                    
-                    ssize k = 0;
-                    string s1s = tempalign2[z][i];
-                    concatalign.at(i) += s1s;
-                    while ( s1s.find('\n') != string::npos )
+                    if (tempalign2[z][0][pos] != '-')
+                        overlap--;
+                    cols_to_trim++;
+                }
+                for (ssize i = 0; i < nnum; i++)
+                {
+                    for (overlap=0, pos = 0; pos < tempalign2[z][i].size(); pos++)
                     {
-                        s1s.erase(  s1s.find('\n'), s1s.find('\n')+1 );
+                        if (tempalign2[z][0][pos] != '-')
+                            overlap++;
                     }
-                    
-                    if ( ct.mums.at(0).isforward.at(i) )
-                    {
-                        xmfafile << "> " << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
-                        if (recomb_filter)
-                        {
-                            clcbfile << "> " << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
-                        }
-                    }
-                    else
-                    {
-                        xmfafile << "> " << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
-                        if (recomb_filter)
-                        {
-                            clcbfile << "> " << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
-                        }
-                    }
-                    bool hit1 = false;
-                    bool hit2 = false;
-                    string hdr1 = "";
-                    string lasthdr1 = "";
-                    int seqstart = 0;
-                    int laststart = 0;
-                    for(map<int,string>::iterator ctt = pos2hdr[i].begin(); ctt != pos2hdr[i].end(); ctt++)
-                    {
-                        if (hit1 && (ct.start.at(i) < (*ctt).first))
-                        {
-                            hit2 = true;
-                            hdr1 = lasthdr1;//(*ctt).second;
-                            seqstart = laststart;//(*ctt).first;
-                            break;
-                        }
-                        else if (ct.start.at(i) >= (*ctt).first && !hit2)
-                        {
-                            hit1 = true;
-                            laststart = (*ctt).first;
-                            lasthdr1 = (*ctt).second;
-                            continue;
-                        }
-                        else if (hit1 & hit2)
-                        {
-                            hdr1 = lasthdr1;
-                            seqstart = laststart;
-                            break;
-                        }
-                        
-                    }
-                    if (hit1 && !hit2)
-                    {
-                        hdr1 =  lasthdr1;
-                        seqstart = laststart;
-                    }
-                    int offset = 0;
-                    if (hdr1 == ""){
-                        hdr1 = "s1";
-                        offset = -1;
-                    } // Cannot have empty header very hard to parse
-                    else if (hdr1 != "s1") 
-                    {
-                        offset = -1;
-                    }
-                    if ( !ct.mums.at(0).isforward.at(i) )
-                    {
-                        xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + 1 + ct.mums.at(0).length + offset << endl;
-                        if(recomb_filter)
-                        {
-                            
-                            clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + ct.mums.at(0).length + offset << endl;
-                        }
-                    } // Tenery added for single contigs
-                    else
-                    {
-                        xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + offset << endl;
-                        if(recomb_filter)
-                        {
-                            clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + offset << endl;
-                        }
-                    }
-                    for( k = 0; k+width < s1s.size();)
-                    {
-                        if(recomb_filter)
-                        {
-                            clcbfile << s1s.substr(k,width) << endl;
-                        }
-                        xmfafile << s1s.substr(k,width) << endl;
-                        k+= width;
-                    }
-                    if (recomb_filter)
-                    {
-                        clcbfile << s1s.substr(k,s1s.size()-k) << endl;
-                    }
-                    xmfafile << s1s.substr(k,s1s.size()-k) << endl;
+                    ct.start[i] += overlap;
+                    tempalign2[z][i].erase(0, cols_to_trim);
                 }
             }
-            xmfafile << "=" << endl;
+            prev_end = lcb_end;
+
+            if (tempalign2[z][0].size() > this->c * 1)
+            {
+                sprintf(b,"%d",(int)z+1);// C-style string formed without null
+                ofstream clcbfile;
+                if (recomb_filter)
+                {
+                    string lcbdir = lcbprefix + b;
+                    string lcbfile = lcbdir +"/"+"seq.fna";
+                    clcbfile.open( lcbfile.c_str());
+                }
+                for ( ssize i = 0; i < nnum; i++)
+                {
+                    if ( 1)
+                    {
+                        int width = 80;
+                        
+                        ssize k = 0;
+                        string s1s = tempalign2[z][i];
+                        concatalign.at(i) += s1s;
+                        while ( s1s.find('\n') != string::npos )
+                        {
+                            s1s.erase(  s1s.find('\n'), s1s.find('\n')+1 );
+                        }
+                        
+                        if ( ct.mums.at(0).isforward.at(i) )
+                        {
+                            xmfafile << "> " << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
+                            if (recomb_filter)
+                            {
+                                clcbfile << "> " << i+1 << ":" << ct.start.at(i)+1 <<  "-" << ct.end.at(i)-1 << " ";
+                            }
+                        }
+                        else
+                        {
+                            xmfafile << "> " << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
+                            if (recomb_filter)
+                            {
+                                clcbfile << "> " << i+1 << ":" << ct.mums.back().start.at(i)+1 <<  "-" << ct.mums.front().end.at(i)-1 << " ";
+                            }
+                        }
+                        bool hit1 = false;
+                        bool hit2 = false;
+                        string hdr1 = "";
+                        string lasthdr1 = "";
+                        int seqstart = 0;
+                        int laststart = 0;
+                        for(map<int,string>::iterator ctt = pos2hdr[i].begin(); ctt != pos2hdr[i].end(); ctt++)
+                        {
+                            if (hit1 && (ct.start.at(i) < (*ctt).first))
+                            {
+                                hit2 = true;
+                                hdr1 = lasthdr1;//(*ctt).second;
+                                seqstart = laststart;//(*ctt).first;
+                                break;
+                            }
+                            else if (ct.start.at(i) >= (*ctt).first && !hit2)
+                            {
+                                hit1 = true;
+                                laststart = (*ctt).first;
+                                lasthdr1 = (*ctt).second;
+                                continue;
+                            }
+                            else if (hit1 & hit2)
+                            {
+                                hdr1 = lasthdr1;
+                                seqstart = laststart;
+                                break;
+                            }
+                            
+                        }
+                        if (hit1 && !hit2)
+                        {
+                            hdr1 =  lasthdr1;
+                            seqstart = laststart;
+                        }
+                        int offset = 0;
+                        if (hdr1 == ""){
+                            hdr1 = "s1";
+                            offset = -1;
+                        } // Cannot have empty header very hard to parse
+                        else if (hdr1 != "s1") 
+                        {
+                            offset = -1;
+                        }
+                        if ( !ct.mums.at(0).isforward.at(i) )
+                        {
+                            xmfafile << "- cluster" << b << " " << hdr1 << ":p" << (ct.start.at(i) - seqstart) + 1 + ct.mums.at(0).length + offset << endl;
+                            if(recomb_filter)
+                            {
+                                
+                                clcbfile << "- cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + ct.mums.at(0).length + offset << endl;
+                            }
+                        } // Tenery added for single contigs
+                        else
+                        {
+                            xmfafile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + offset << endl;
+                            if(recomb_filter)
+                            {
+                                clcbfile << "+ cluster" << b << " "  << hdr1 << ":p" << (ct.start.at(i)-seqstart)+ 1 + offset << endl;
+                            }
+                        }
+                        for( k = 0; k+width < s1s.size();)
+                        {
+                            if(recomb_filter)
+                            {
+                                clcbfile << s1s.substr(k,width) << endl;
+                            }
+                            xmfafile << s1s.substr(k,width) << endl;
+                            k+= width;
+                        }
+                        if (recomb_filter)
+                        {
+                            clcbfile << s1s.substr(k,s1s.size()-k) << endl;
+                        }
+                        xmfafile << s1s.substr(k,s1s.size()-k) << endl;
+                    }
+                }
+                xmfafile << "=" << endl;
+            }
         }
-	    else
-	    	continue;
+        else
+            continue;
     }
     
     
