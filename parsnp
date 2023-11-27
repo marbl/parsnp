@@ -202,14 +202,20 @@ def parallelPhiWrapper(params):
         return result
 
 
-def run_command(command,ignorerc=0):
+def run_command(command,ignorerc=0, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
     global SIGINT
     logger.debug(command)
-    result = subprocess.run(shlex.split(command), stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    result = subprocess.run(shlex.split(command), stderr=stderr, stdout=stdout)
     rc = result.returncode
 
-    fstdout = result.stdout.decode()
-    fstderr = result.stderr.decode()
+    if stdout == subprocess.PIPE:
+        fstdout = result.stdout.decode()
+    else:
+        fstdout = "STDOUT was piped... please see output file"
+    if stderr == subprocess.PIPE:
+        fstderr = result.stderr.decode()
+    else:
+        fstderr = "STDERR was piped... please see output file"
     if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
       logger.critical("""The following command failed:
       >>$ {}
@@ -674,6 +680,7 @@ def create_output_directory(output_dir):
     os.makedirs(output_dir, exist_ok=True)
     shutil.rmtree(os.path.join(output_dir, "tmp"), ignore_errors=True)
     os.makedirs(os.path.join(output_dir, "tmp"), exist_ok=True)
+    return output_dir
 
 
 def process_input_files(cmd_args, input_files):
@@ -1132,7 +1139,7 @@ if __name__ == "__main__":
     check_for_dependencies(xtrafast, use_fasttree)
 
     # 3) Create output dir
-    create_output_directory(outputDir)
+    outputDir = create_output_directory(outputDir)
 
     # 4) Process all input files:
     #   -- 'input_files' here is args.sequences
@@ -1713,19 +1720,21 @@ SETTINGS:
             with TemporaryDirectory() as raxml_output_dir:
                 command = "raxmlHPC-PTHREADS -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
                 run_command(command)
-                os.system("mv {}/RAxML_bestTree.OUTPUT {}".format(raxml_output_dir, outputDir+os.sep+"parsnp.tree"))
+                shutil.move(f"{raxml_output_dir}/RAxML_bestTree.OUTPUT", outputDir + os.sep + "parsnp.tree")
 
             mblocks_file = os.path.join(outputDir, "parsnp.snps.mblocks")
 
         if use_fasttree:
             if shutil.which("FastTreeMP") is not None:
                 os.environ["OMP_NUM_THREADS"] = str(threads)
-                command = "FastTreeMP -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
-                run_command(command)
+                command = "FastTreeMP -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks"
+                with open(outputDir + os.sep + "parsnp.tree", 'w') as tree_out:
+                    run_command(command, stdout=tree_out)
             else:
                 logger.info("FastTreeMP failed. Trying fasttree...")
-                command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks > "+outputDir+os.sep+"parsnp.tree"
-                run_command(command)
+                command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks"
+                with open(outputDir + os.sep + "parsnp.tree", 'w') as tree_out:
+                    run_command(command, stdout=tree_out)
 
 
 
