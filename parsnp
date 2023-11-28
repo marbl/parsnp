@@ -1624,10 +1624,10 @@ SETTINGS:
         # run_command_nocheck = partial(run_command, check=False)
         with Pool(args.threads) as pool:
             # return_codes = tqdm(pool.imap(run_command_nocheck, parsnp_commands, chunksize=1), total=len(parsnp_commands))
-            return_codes = tqdm(pool.imap(run_parsnp_aligner, chunk_output_dirs))
+            return_codes = tqdm(pool.imap(run_parsnp_aligner, chunk_output_dirs, chunksize=1), total=len(chunk_output_dirs))
             for cl, rc in zip(chunk_labels, return_codes):
                 if rc != 0:
-                    logger.error("Partition {cl} failed...")
+                    logger.error(f"Partition {cl} failed...")
                     good_chunks.remove(cl)
             
         chunk_labels = list(good_chunks)
