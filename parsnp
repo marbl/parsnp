@@ -426,7 +426,7 @@ def parse_args():
 
     partition_args = parser.add_argument_group("Sequence Partitioning")
     partition_args.add_argument(
-        "--partition-runs",
+        "--partition",
         action='store_true',
         help="Evenly split input sequences across separate runs of parsnp, then merge results")
     partition_args.add_argument(
@@ -989,7 +989,7 @@ def write_inifile_1(args, ref, aligner, xtrafast, output_dir, fastmum, reflen, f
     return inifiled
 
 
-def write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, finalfiles, ref):
+def write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, finalfiles, ref, threads):
     '''
     Writes the second .ini file ('parsnpAligner.ini' and 'psnn.ini') using part of the previous one as a
     starting point.
@@ -1003,6 +1003,7 @@ def write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, final
         query:              (assigned directly from args in the main loop)
         finalfiles:         copy of the final file set to align from other code in the main loop.
         ref:                (assigned directly from args in the main loop)
+        threads:            Number of threads to use
 
     Returns:
 
@@ -1011,6 +1012,10 @@ def write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, final
     # Rewrite output dir
     comp = re.compile(r"(.*)\noutdir=(.*)\n(.*)")
     inifiled = comp.sub(fr"\1\noutdir={outputDir}\n\3", inifiled)
+
+    # Replace threads
+    comp = re.compile(r"(.*)\ncores=(.*)\n(.*)")
+    inifiled = comp.sub(fr"\1\ncores={threads}\n\3", inifiled)
 
     if len(finalfiles) < 1 or ref == "":
         logger.critical("Parsnp requires 2 or more genomes to run, exiting\n")
@@ -1355,6 +1360,7 @@ SETTINGS:
                         max(500, reflen // 100))
                     if randomly_selected_ref:
                         subprocess.check_call([
+                                "/usr/bin/time", "-v",
                                 "fastANI",
                                 "--ql", all_genomes_fname,
                                 "--rl", all_genomes_fname,
@@ -1364,6 +1370,7 @@ SETTINGS:
                             stderr=open(os.path.join(outputDir, "fastANI.err"), 'w'))
                     else:
                         subprocess.check_call([
+                                "/usr/bin/time", "-v",
                                 "fastANI",
                                 "-r", ref,
                                 "--ql", all_genomes_fname,
@@ -1433,10 +1440,10 @@ SETTINGS:
     totseqs = len(finalfiles)
 
     #3)run parsnp (cores, grid?)
-    if not args.partition_runs:
+    if not args.partition:
         # Editing the ini file to be used for parnsp-aligner (which is different from parsnip as a mumi finder)
         if not inifile_exists:
-            write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, finalfiles, ref)
+            write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, finalfiles, ref, args.threads)
 
         logger.info("Running Parsnp multi-MUM search and libMUSCLE aligner...")
         run_parsnp_aligner(outputDir)
@@ -1617,7 +1624,7 @@ SETTINGS:
             with open(f"{partition_list_dir}/{partition.CHUNK_PREFIX}-{cl}.txt", 'r') as partition_file:
                 partition_seq_files = [f for f in partition_file.read().splitlines()]
 
-            write_inifile_2(inifiled, chunk_output_dir, unaligned, args, auto_ref, query, partition_seq_files, ref)
+            write_inifile_2(inifiled, chunk_output_dir, unaligned, args, auto_ref, query, partition_seq_files, ref, max(1, args.threads // len(chunk_labels)))
 
         logger.info("Running partitions...")
         good_chunks = set(chunk_labels)
@@ -1701,7 +1708,7 @@ SETTINGS:
         else:
             run_command(f"harvesttools -q -o {outputDir}/parsnp.ggr -f {ref} -x {parsnp_output}")
 
-        if not args.partition_runs and run_recomb_filter:
+        if not args.partition and run_recomb_filter:
             run_command("harvesttools -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir))
 
         run_command("harvesttools -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
