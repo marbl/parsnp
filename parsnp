@@ -338,12 +338,12 @@ def parse_args():
     MUMi_args.add_argument(
         "--min-ani",
         type = float,
-        default = 90,
+        default = 95,
         help = "Min ANI value to allow for genome recruitment.")
     MUMi_args.add_argument(
         "--min-ref-cov",
         type = float,
-        default = 90,
+        default = 0,
         help = "Minimum percent of reference segments to be covered in FastANI")
     MUMi_rec_prog.add_argument(
         "--use-mash",
