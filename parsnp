@@ -1608,6 +1608,9 @@ SETTINGS:
             for qf in finalfiles:
                 input_list_handle.write(qf + "\n")
 
+        if len(finalfiles) % args.partition_size == 1:
+            logger.warning("Incrementing partition size by 1 to avoid having a remainder partition of size 1")
+            args.partition_size += 1
         partition_output_dir = f"{outputDir}/partition"
         partition_list_dir = f"{partition_output_dir}/input-lists"
         os.makedirs(partition_list_dir, exist_ok=True)
