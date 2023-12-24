@@ -22,6 +22,7 @@ from multiprocessing import Pool
 from Bio import SeqIO
 from glob import glob
 from pathlib import Path
+from random import shuffle
 
 
 import extend as ext
@@ -1603,6 +1604,7 @@ SETTINGS:
     else:
         full_query_list_path = f"{outputDir}/input-list.txt"
         with open(full_query_list_path, 'w') as input_list_handle:
+            shuffle(finalfiles)
             for qf in finalfiles:
                 input_list_handle.write(qf + "\n")
 
