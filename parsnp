@@ -1718,7 +1718,7 @@ SETTINGS:
 
         run_command("harvesttools -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
         if generate_vcf:
-            run_command("harvesttools -q -i %s/parsnp.ggr -V "%(outputDir)+outputDir+os.sep+"parsnp.vcf")
+            run_command(f"harvesttools -q -x {parsnp_output} -V {outputDir+os.sep}parsnp.vcf")
 
     if not args.skip_phylogeny:
         logger.info("Reconstructing core genome phylogeny...")
