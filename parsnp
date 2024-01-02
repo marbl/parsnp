@@ -1057,17 +1057,17 @@ def write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, final
         inifiled_closest = inifiled_closest.replace(auto_ref, "tmp_" + auto_ref)
         inifiled_closest = inifiled_closest.replace(query, auto_ref)
         inifiled_closest = inifiled_closest.replace("tmp_" + auto_ref, query)
-    inifile = open(f"{outputDir}/config/parsnpAligner.ini", 'w')
+    inifile = open(f"{outputDir}/parsnpAligner.ini", 'w')
     inifile.write(inifiled)
     inifile.close()
-    inifile_closest = open(f"{outputDir}/psnn.ini", 'w')
-    inifile_closest.write(inifiled_closest)
-    inifile_closest.close()
+    # inifile_closest = open(f"{outputDir}/psnn.ini", 'w')
+    # inifile_closest.write(inifiled_closest)
+    # inifile_closest.close()
 
 
 # Assumes outputDir/parsnpAligner.ini exists
 def run_parsnp_aligner(outputDir):
-    inifile = f"{outputDir}/config/parsnpAligner.ini"
+    inifile = f"{outputDir}/parsnpAligner.ini"
     if not os.path.exists(inifile):
         logger.error("ini file %s does not exist!\n"%(inifile))
         sys.exit(1)
@@ -1445,6 +1445,9 @@ SETTINGS:
 
     totseqs = len(finalfiles)
 
+    #initiate parallelPhiPack tasks
+    run_recomb_filter = 0
+
     #3)run parsnp (cores, grid?)
     if not args.partition:
         # Editing the ini file to be used for parnsp-aligner (which is different from parsnip as a mumi finder)
@@ -1514,8 +1517,6 @@ SETTINGS:
                     block_dict[f] = [int(spos),int(epos), rseq]
                     lf.close()
 
-        #initiate parallelPhiPack tasks
-        run_recomb_filter = 0
 
         if xtrafast:
             run_recomb_filter = 1
@@ -1630,7 +1631,8 @@ SETTINGS:
         chunk_output_dirs = []
         for cl in chunk_labels:
             chunk_output_dir = f"{partition_output_dir}/{partition.CHUNK_PREFIX}-{cl}-out"
-            os.makedirs(chunk_output_dir, exist_ok=True)
+            # os.makedirs(chunk_output_dir, exist_ok=True)
+            create_output_directory(chunk_output_dir)
             chunk_output_dirs.append(chunk_output_dir)
             with open(f"{partition_list_dir}/{partition.CHUNK_PREFIX}-{cl}.txt", 'r') as partition_file:
                 partition_seq_files = [f for f in partition_file.read().splitlines()]
@@ -1719,7 +1721,7 @@ SETTINGS:
     # Harvest seems to fail sometimes when piping to stderr/stdout...
     run_command(command)
 
-    if run_recomb_filter:
+    if run_recomb_filter and not args.partition:
         command = "harvesttools -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir)
         run_logged_command(command, outputDir, label="recomb-filter")
 
