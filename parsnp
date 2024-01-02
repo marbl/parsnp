@@ -1472,7 +1472,7 @@ SETTINGS:
             sys.exit(1)
 
         #update thresholds
-        if coverage < 0.1 and not curated:
+        if coverage < 0.1:
             if coverage <= 0.01:
                 logger.critical("""Aligned regions cover less than 1% of reference genome, something is not right
     Adjust params and rerun. If issue persists please submit a GitHub issue""")
