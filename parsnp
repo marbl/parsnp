@@ -1716,7 +1716,7 @@ SETTINGS:
         else:
             run_command(f"harvesttools -q -o {outputDir}/parsnp.ggr -f {ref} -x {parsnp_output}")
 
-        if not args.partition and run_recomb_filter:
+        if run_recomb_filter:
             run_command("harvesttools -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir))
 
         run_command("harvesttools -q -i %s/parsnp.ggr -S "%(outputDir)+outputDir+os.sep+"parsnp.snps.mblocks")
