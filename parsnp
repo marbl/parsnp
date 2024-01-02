@@ -692,6 +692,7 @@ def create_output_directory(output_dir):
     os.makedirs(output_dir)
     os.makedirs(os.path.join(output_dir, "tmp"))
     os.makedirs(os.path.join(output_dir, "log"))
+    os.makedirs(os.path.join(output_dir, "config"))
     return output_dir
 
 
@@ -993,7 +994,7 @@ def write_inifile_1(args, ref, aligner, xtrafast, output_dir, fastmum, reflen, f
         file_string += "reverse%d=0\n" % (cnt)
     inifiled_mumi = inifiled.replace("$FILES\n", file_string)
     inifiled_mumi = inifiled_mumi.replace("calcmumi=0", "calcmumi=1")
-    inifile_mumi = open(os.path.join(output_dir, "all_mumi.ini"), 'w')
+    inifile_mumi = open(os.path.join(output_dir, "config", "all_mumi.ini"), 'w')
     inifile_mumi.write(inifiled_mumi)
     inifile_mumi.close()
 
@@ -1056,17 +1057,17 @@ def write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, final
         inifiled_closest = inifiled_closest.replace(auto_ref, "tmp_" + auto_ref)
         inifiled_closest = inifiled_closest.replace(query, auto_ref)
         inifiled_closest = inifiled_closest.replace("tmp_" + auto_ref, query)
-    inifile = open(outputDir + os.sep + "parsnpAligner.ini", 'w')
+    inifile = open(f"{outputDir}/config/parsnpAligner.ini", 'w')
     inifile.write(inifiled)
     inifile.close()
-    inifile_closest = open(outputDir + os.sep + "psnn.ini", 'w')
+    inifile_closest = open(f"{outputDir}/psnn.ini", 'w')
     inifile_closest.write(inifiled_closest)
     inifile_closest.close()
 
 
 # Assumes outputDir/parsnpAligner.ini exists
 def run_parsnp_aligner(outputDir):
-    inifile = f"{outputDir}/parsnpAligner.ini"
+    inifile = f"{outputDir}/config/parsnpAligner.ini"
     if not os.path.exists(inifile):
         logger.error("ini file %s does not exist!\n"%(inifile))
         sys.exit(1)
@@ -1291,20 +1292,20 @@ SETTINGS:
         logger.info("Recruiting genomes...")
         if use_parsnp_mumi:
             if not inifile_exists:
-                command = "%s/bin/parsnp_core %sall_mumi.ini"%(PARSNP_DIR,outputDir+os.sep)
+                command = f"{PARSNP_DIR}/bin/parsnp_core {outputDir}/config/all_mumi.ini"
             else:
                 # TODO why are we editing the suffix of a provided file?
-                command = "%s/bin/parsnp_core %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
-            with open(f"{outputDir}/parsnpMUMi.err", 'w') as stderr_f:
-                run_logged_command(command=command, outputDir=outputDir, label="parsnp-mumi")
+                command = f"{PARSNP_DIR}/bin/parsnp_core {inifile.replace('.ini', '_mumi.ini')}"
+            run_logged_command(command=command, outputDir=outputDir, label="parsnp-mumi")
             # Takes eeach sequence and computes its mumi distance to the reference
             try:
-                mumif = open(os.path.join(outputDir, "all.mumi"),'r')
+                mumif = open(os.path.join(outputDir,  "all.mumi"),'r')
                 for line in mumif:
                     line = line.rstrip('\n')
                     idx, mi = line.split(":")
                     mumi_dict[int(idx)-1] = float(mi)
-            except IOError:
+                shutil.move(f"{outputDir}/all.mumi", f"{outputDir}/config/all.mumi")
+            except IOError as e:
                 logger.error("MUMi file generation failed... use all?")
                 for i, _ in enumerate(fnafiles):
                     mumi_dict[i] = 1
@@ -1319,7 +1320,7 @@ SETTINGS:
                         lowest_mumi = mumi_dict[idx]
             mumi_f = ""
             if mumi_only and not curated:
-                mumi_f = open(os.path.join(outputDir, "recruited_genomes.lst"),'w')
+                mumi_f = open(os.path.join(outputDir, "config", "recruited_genomes.lst"),'w')
 
 
             sorted_x = sorted(iter(mumi_dict.items()), key=operator.itemgetter(1))
@@ -1351,7 +1352,7 @@ SETTINGS:
 
         else:
             try:
-                tmp_dir = outputDir
+                tmp_dir = f"{outputDir}/tmp"
                 all_genomes_fname = os.path.join(tmp_dir, "genomes.lst")
                 with open(all_genomes_fname, 'w') as all_genomes_f:
                     all_genomes_f.writelines((line + '\n' for line in fnafiles))
@@ -1452,6 +1453,7 @@ SETTINGS:
 
         logger.info("Running Parsnp multi-MUM search and libMUSCLE aligner...")
         run_parsnp_aligner(outputDir)
+        shutil.move(f"{outputDir}/parsnpAligner.log", f"{outputDir}/log/parsnpAligner.log")
 
         blocks_dir = os.path.join(outputDir, "blocks")
         if not os.path.exists(blocks_dir):
@@ -1461,7 +1463,7 @@ SETTINGS:
         coverage = 0
         totlength = 0
         try:
-            cf = open(os.path.join(outputDir, "parsnpAligner.log"))
+            cf = open(os.path.join(outputDir, "log", "parsnpAligner.log"))
             for line in cf:
                 if "Total coverage among all sequences:" in line:
                     coverage = line.split(":",1)[-1].replace("\n","")
@@ -1606,7 +1608,7 @@ SETTINGS:
             bedfile.close()
 
     else:
-        full_query_list_path = f"{outputDir}/input-list.txt"
+        full_query_list_path = f"{outputDir}/config/input-list.txt"
         with open(full_query_list_path, 'w') as input_list_handle:
             shuffle(finalfiles)
             for qf in finalfiles:
@@ -1740,7 +1742,7 @@ SETTINGS:
                 use_fasttree = True
                 break
         if not use_fasttree:
-            with TemporaryDirectory() as raxml_output_dir, open(f"{outputDir}/raxml.err", 'w') as tree_stderr, open(f"{outputDir}/raxml.out", 'w') as tree_stdout:
+            with TemporaryDirectory() as raxml_output_dir:
                 command = "raxmlHPC-PTHREADS -m GTRCAT -p 12345 -T %d -s %s -w %s -n OUTPUT"%(threads,outputDir+os.sep+"parsnp.snps.mblocks", raxml_output_dir)
                 run_logged_command(command, outputDir=outputDir, label="raxml")
                 shutil.move(f"{raxml_output_dir}/RAxML_bestTree.OUTPUT", outputDir + os.sep + "parsnp.tree")
