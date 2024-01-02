@@ -515,6 +515,9 @@ def parse_args():
         "--extend",
         action = "store_true")
     misc_args.add_argument(
+        "--no-recruit",
+        action = "store_true")
+    misc_args.add_argument(
         "-V",
         "--version",
         action = "version",
@@ -921,12 +924,12 @@ def parse_input_files(input_files, curated, validate_input):
             if sizediff <= 0.8:
                 log_f("File {} is {:.2f}x longer than reference! {}".format(
                     input_file, 1 / sizediff, msg))
-                if not curated:
+                if not curated or args.no_recruit:
                     continue
             elif sizediff >= 1.2:
                 log_f("File {} is {:.2f}x shorter than reference genome! {}".format(
                     input_file, sizediff, msg))
-                if not curated:
+                if not curated or args.no_recruit:
                     continue
             fnafiles.append(input_file)
             fnaf_sizes[input_file] = seqlen
