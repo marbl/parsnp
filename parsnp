@@ -212,11 +212,11 @@ def run_command(command,ignorerc=0, stdout=subprocess.PIPE, stderr=subprocess.PI
     if stdout == subprocess.PIPE:
         fstdout = result.stdout.decode()
     else:
-        fstdout = "STDOUT was piped... please see output file"
+        fstdout = f"STDOUT was piped... please see output file:\t {stdout.name}"
     if stderr == subprocess.PIPE:
         fstderr = result.stderr.decode()
     else:
-        fstderr = "STDERR was piped... please see output file"
+        fstderr = f"STDERR was piped... please see output file:\t {stderr.name}"
     if rc != 0 and not SIGINT and not ignorerc and "rm " not in command and "ls " not in command and "unlink " not in command and "ln " not in command and "mkdir " not in command and "mv " not in command:
       logger.critical("""The following command failed:
       >>$ {}
@@ -1064,7 +1064,8 @@ def run_parsnp_aligner(outputDir):
         logger.error("ini file %s does not exist!\n"%(inifile))
         sys.exit(1)
     command = "%s/bin/parsnp_core %s"%(PARSNP_DIR,inifile)
-    rc = run_command(command, ignorerc=1)
+    with open(f"{outputDir}/parsnpAligner.err", 'w') as stderr_f:
+        rc = run_command(command, ignorerc=1, stderr=stderr_f)
 
     if not os.path.exists(os.path.join(outputDir, "parsnpAligner.xmfa")) or rc != 0:
         logger.critical("Set of recruited genomes are too divergent for parsnp, please reduce MUMi (%f) and relaunch\n"%(float(mumidistance)))
@@ -1287,7 +1288,8 @@ SETTINGS:
             else:
                 # TODO why are we editing the suffix of a provided file?
                 command = "%s/bin/parsnp_core %s"%(PARSNP_DIR,inifile.replace(".ini","_mumi.ini"))
-            run_command(command)
+            with open(f"{outputDir}/parsnpMUMi.err", 'w') as stderr_f:
+                run_command(command, stderr=stderr_f)
             # Takes eeach sequence and computes its mumi distance to the reference
             try:
                 mumif = open(os.path.join(outputDir, "all.mumi"),'r')
