@@ -26,7 +26,6 @@ from random import shuffle
 
 
 import extend as ext
-import partition
 from tqdm import tqdm
 
 __version__ = "1.7.4"
@@ -1609,6 +1608,8 @@ SETTINGS:
             bedfile.close()
 
     else:
+        import partition 
+
         full_query_list_path = f"{outputDir}/config/input-list.txt"
         with open(full_query_list_path, 'w') as input_list_handle:
             shuffle(finalfiles)
