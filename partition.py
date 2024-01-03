@@ -18,10 +18,7 @@ from Bio import AlignIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from tqdm import tqdm
-
-# from logger import logger
-from pprint import pprint
+from logger import logger
 
 
 FASTA_SUFFIX_LIST = ".fasta, .fas, .fa, .fna, .ffn, .faa, .mpfa, .frn".split(", ")
@@ -142,14 +139,11 @@ def trim(aln: MultipleSeqAlignment,
                 # assert(all(interval in ref_cidx_to_intervals[contig_idx] for interval in trimmed_intervals))
                 ref_rec = rec
             except Exception as e:
-                print((super_startpos, super_endpos))
-                print(ref_cidx_to_intervals[contig_idx])
+                logger.critical(e)
                 raise e
             break
     else:
-        print("Interval not found!")
-        print(aln)
-        print(seqidx)
+        logger.critical("Reference alignment not found!")
         raise
     
     # ref_psum[i] = number of nucleotides in first i columns
@@ -246,7 +240,6 @@ def write_aln_to_xmfa(aln: MultipleSeqAlignment, out_handle: TextIO) -> None:
     for rec in aln:
         header = f"> {rec.name}:{rec.annotations['start']+1}-{rec.annotations['end']} {'+' if rec.annotations['strand'] == 1 else '-'} {rec.id}\n"
         out_handle.write(header)
-        # print(len(rec.seq))
         for i in range(math.ceil(len(rec.seq) / LINESIZE)):
             out_handle.write(str(rec.seq[i*LINESIZE:(i+1)*LINESIZE]) + "\n")
     out_handle.write("=\n")
@@ -583,8 +576,8 @@ def get_intersected_intervals(
         intersection_sum += sum(b - a for a,b in intervals)
         num_ints += len(intervals)
 
-    print(f"Partition stats: Mean bp covered = {np.mean(bp_covered):.2f}\tMean LCB count = {np.mean(num_clusters):.2f}")
-    print(f"After intersection:            {intersection_sum} reference bases over {num_ints} clusters")
+    logger.info(f"Partition stats: Mean bp covered = {np.mean(bp_covered):.2f}\tMean LCB count = {np.mean(num_clusters):.2f}")
+    logger.info(f"After intersection:            {intersection_sum} reference bases over {num_ints} clusters")
     return intersected_interval_dict
 
 
@@ -643,9 +636,7 @@ def trim_xmfas(
         num_clusters_per_xmfa = list(tqdm(pool.imap_unordered(trim_partial, orig_xmfa_files), total=len(orig_xmfa_files)))
         #TODO clean up
         if not all(num_clusters_per_xmfa[0][1] == nc for xmfa, nc in num_clusters_per_xmfa):
-            pprint(num_clusters_per_xmfa)
-            print(Counter(nc for xmfa, nc in num_clusters_per_xmfa))
-            print("ERROR: One of the partitions has a different number of clusters after trimming...")
+            logger.critical("One of the partitions has a different number of clusters after trimming...")
             raise
     return num_clusters_per_xmfa[0][1]
 
@@ -771,29 +762,28 @@ if __name__ == "__main__":
         chunk_command += f" > {chunk_output_dir}/parsnp.stdout 2> {chunk_output_dir}/parsnp.stderr"
         parsnp_commands.append(chunk_command)
 
-    # print("Running partitions...")
     good_chunks = set(chunk_labels)
     run_command_nocheck = partial(run_command, check=False)
     with Pool(args.threads) as pool:
         return_codes = tqdm(pool.imap(run_command_nocheck, parsnp_commands, chunksize=1), total=len(parsnp_commands))
         for cl, rc in zip(chunk_labels, return_codes):
             if rc != 0:
-                print(f"ERROR:\tPartition {cl} failed...")
+                logger.error("Partition {cl} failed...")
                 good_chunks.remove(cl)
         
     chunk_labels = list(good_chunks)
 
-    print("Computing intersection of all partition LCBs...")
+    logger.info("Computing intersection of all partition LCBs...")
     chunk_to_intvervaldict = get_chunked_intervals(partition_output_dir, chunk_labels)
     intersected_interval_dict = get_intersected_intervals(chunk_to_intvervaldict)
     
-    print("Trimming partitioned XMFAs back to intersected intervals...")
+    logger.info("Trimming partitioned XMFAs back to intersected intervals...")
     num_clusters = trim_xmfas(partition_output_dir, chunk_labels, intersected_interval_dict, args.threads)
 
     os.makedirs(f"{args.output_dir}/merged-out/", exist_ok=True)
     xmfa_out_f =  f"{args.output_dir}/merged-out/parsnp.xmfa"
 
-    print(f"Merging trimmed XMFA files into a single XMFA at {xmfa_out_f}")
+    logger.info(f"Merging trimmed XMFA files into a single XMFA at {xmfa_out_f}")
     merge_xmfas(partition_output_dir, chunk_labels, xmfa_out_f, num_clusters, args.threads)
 
 
