@@ -30,6 +30,7 @@ from tqdm import tqdm
 
 __version__ = "2.0.0"
 reroot_tree = True #use --midpoint-reroot
+random.seed(42)
 
 try:
     import dendropy
