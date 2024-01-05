@@ -19,6 +19,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from logger import logger
+from tqdm import tqdm
 
 
 FASTA_SUFFIX_LIST = ".fasta, .fas, .fa, .fna, .ffn, .faa, .mpfa, .frn".split(", ")
