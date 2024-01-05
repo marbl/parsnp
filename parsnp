@@ -1319,7 +1319,7 @@ SETTINGS:
                         ref = auto_ref
                         lowest_mumi = mumi_dict[idx]
             mumi_f = ""
-            if mumi_only and not curated:
+            if mumi_only:
                 mumi_f = open(os.path.join(outputDir, "config", "recruited_genomes.lst"),'w')
 
 
@@ -1349,6 +1349,9 @@ SETTINGS:
                             mumi_f.write(os.path.abspath(fnafiles[idx])+",%f"%(mumi_dict[idx])+"\n")
                         finalfiles.append(fnafiles[idx])
                         allfiles.append(fnafiles[idx])
+            if mumi_only:
+                mumi_f.close()
+                exit(0)
 
         else:
             try:
@@ -1412,10 +1415,6 @@ SETTINGS:
                 finalfiles.append(f)
             if f not in allfiles:
                 allfiles.append(f)
-
-    if mumi_only:
-        mumi_f.close()
-        sys.exit(1)
 
     # More stuff to autopick the reference if needed:
     orig_auto_ref = auto_ref
