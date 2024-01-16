@@ -204,7 +204,9 @@ def parallelPhiWrapper(params):
 
 def run_logged_command(command, outputDir, label, **kwargs):
     with open(f"{outputDir}/log/{label}.out", 'w') as stdout_f, open(f"{outputDir}/log/{label}.err", 'w') as stderr_f:
-        return run_command(command="time " + command, stdout=stdout_f, stderr=stderr_f, **kwargs)
+        if shutil.which("time") is not None:
+            command = "time " + command
+        return run_command(command=command, stdout=stdout_f, stderr=stderr_f, **kwargs)
 
 def run_command(command, ignorerc=0, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
     global SIGINT
