@@ -22,7 +22,6 @@ from multiprocessing import Pool
 from Bio import SeqIO
 from glob import glob
 from pathlib import Path
-from random import shuffle
 
 
 import extend as ext
@@ -30,7 +29,7 @@ from tqdm import tqdm
 
 __version__ = "2.0.0"
 reroot_tree = True #use --midpoint-reroot
-random.seed(42)
+random_seeded = random.Random(42)
 
 try:
     import dendropy
@@ -1223,7 +1222,7 @@ SETTINGS:
     reflen = 0
 
     if ref == "!":
-        ref = random.choice(input_files)
+        ref = random_seeded.choice(input_files)
 
     # Check if reference genome is aligned
     reflen = check_ref_genome_aligned(ref)
@@ -1444,6 +1443,7 @@ SETTINGS:
         ffo.close()
         ref = auto_ref
 
+    finalfiles = sorted(finalfiles)
     totseqs = len(finalfiles)
 
     #initiate parallelPhiPack tasks
@@ -1614,7 +1614,7 @@ SETTINGS:
 
         full_query_list_path = f"{outputDir}/config/input-list.txt"
         with open(full_query_list_path, 'w') as input_list_handle:
-            shuffle(finalfiles)
+            random_seeded.shuffle(finalfiles)
             for qf in finalfiles:
                 input_list_handle.write(qf + "\n")
 
@@ -1651,7 +1651,7 @@ SETTINGS:
                     logger.error(f"Partition {cl} failed...")
                     good_chunks.remove(cl)
             
-        chunk_labels = list(good_chunks)
+        chunk_labels = sorted(list(good_chunks))
 
         logger.info("Computing intersection of all partition LCBs...")
         chunk_to_intvervaldict = partition.get_chunked_intervals(partition_output_dir, chunk_labels)
