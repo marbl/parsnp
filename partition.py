@@ -69,7 +69,7 @@ def get_interval(aln: MultipleSeqAlignment) -> Tuple[int, IntervalType]:
     """
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)/.*')
     seq = aln[0]
-    aln_len = seq.annotations["end"] - seq.annotations["start"] + 1
+    aln_len = seq.annotations["end"] - seq.annotations["start"] 
     cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(seq.id).groups()]
 
     if seq.annotations["strand"] == -1:
@@ -122,7 +122,7 @@ def trim(aln: MultipleSeqAlignment,
     # Look for the record in the LCB that represents the reference genome
     for rec in aln:
         if int(rec.name) == seqidx:
-            aln_len = rec.annotations["end"] - rec.annotations["start"] + 1
+            aln_len = rec.annotations["end"] - rec.annotations["start"]
             cluster_idx, contig_idx, super_startpos = [int(x) for x in seqid_parser.match(rec.id).groups()]
 
             if rec.annotations["strand"] == -1:
@@ -185,7 +185,7 @@ def trim(aln: MultipleSeqAlignment,
             # orig_seq = copy.deepcopy(seq)
             new_rec = aln_seqs[seq_idx]
             
-            aln_len = rec.annotations["end"] - rec.annotations["start"] + 1
+            aln_len = rec.annotations["end"] - rec.annotations["start"]
             cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(rec.id).groups()]
             left_bases_trim = 0
             right_bases_trim = 0

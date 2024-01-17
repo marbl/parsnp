@@ -68,7 +68,7 @@ def xmfa_to_covered(xmfa_file, index_to_gid, gid_to_cid_to_index):
     for aln in tqdm(AlignIO.parse(xmfa_file, "mauve")):
         for seq in aln:
             # Skip reference for now...
-            aln_len = seq.annotations["end"] - seq.annotations["start"] + 1
+            aln_len = seq.annotations["end"] - seq.annotations["start"]
             cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(seq.id).groups()]
             
             gid = index_to_gid[seq.name]
