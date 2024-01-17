@@ -1671,51 +1671,32 @@ SETTINGS:
         partition.merge_xmfas(partition_output_dir, chunk_labels, xmfa_out_f, num_clusters, args.threads)
 
 
-
-    run_lcb_trees = 0
+    parsnp_output = f"{outputDir}/parsnp.xmfa"
 
     # This is the stuff for LCB extension:
-    annotation_dict = {}
-    #TODO always using xtrafast?
-    parsnp_output = f"{outputDir}/parsnp.xmfa"
     if args.extend_lcbs:
-        xmfa_file = f"{outputDir}/parsnp.xmfa"
-        with TemporaryDirectory() as temp_directory:
-            original_maf_file = f"{outputDir}/parsnp-original.maf"
-            extended_xmfa_file = f"{outputDir}/parsnp-extended.xmfa"
-            fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord = ext.get_sequence_data(
-                    ref,
-                    finalfiles,
-                    index_files=False)
-            fname_to_contigid_to_coords, fname_header_to_gcontigidx = ext.xmfa_to_maf(
-                    xmfa_file,
-                    original_maf_file,
-                    fname_contigidx_to_header,
-                    fname_contigid_to_length)
-            packed_write_result = ext.write_intercluster_regions(finalfiles + [ref], temp_directory, fname_to_contigid_to_coords)
-            fname_contigid_to_cluster_dir_to_length, fname_contigid_to_cluster_dir_to_adjacent_cluster = packed_write_result
-            cluster_files = glob(f"{temp_directory}/*.fasta")
-            clusterdir_expand, clusterdir_len = ext.get_new_extensions(
-                    cluster_files,
-                    args.match_score,
-                    args.mismatch_penalty,
-                    args.gap_penalty)
-            ext.write_extended_xmfa(
-                    original_maf_file,
-                    extended_xmfa_file,
-                    temp_directory,
-                    clusterdir_expand,
-                    clusterdir_len,
-                    fname_contigid_to_cluster_dir_to_length,
-                    fname_contigid_to_cluster_dir_to_adjacent_cluster,
-                    fname_header_to_gcontigidx,
-                    fname_contigid_to_length,
-                    args.extend_ani_cutoff,
-                    args.extend_indel_cutoff,
-                    threads)
-            parsnp_output = extended_xmfa_file
-            os.remove(original_maf_file)
+        import partition 
+        import extend as ext
 
+        orig_parsnp_xmfa = parsnp_output
+        extended_parsnp_xmfa = orig_parsnp_xmfa + ".extended"
+
+        # Index input fasta files and original xmfa 
+        index_to_gid, gid_to_index = ext.parse_xmfa_header(orig_parsnp_xmfa)
+        gid_to_records, gid_to_cid_to_index, gid_to_index_to_cid = ext.index_input_sequences(orig_parsnp_xmfa, finalfiles + [ref])
+
+        # Get covered regions of xmfa file
+        idpair_to_segments, cluster_to_named_segments = ext.xmfa_to_covered(orig_parsnp_xmfa, index_to_gid, gid_to_index_to_cid)
+
+        # Extend clusters
+        logger.info(f"Extending LCBs with SPOA...")
+        new_lcbs = ext.extend_clusters(orig_parsnp_xmfa, gid_to_index, gid_to_cid_to_index, idpair_to_segments, cluster_to_named_segments, gid_to_records)
+
+        # Write output
+        partition.copy_header(orig_parsnp_xmfa, extended_parsnp_xmfa)
+        with open(extended_parsnp_xmfa, 'a') as out_f:
+            for lcb in new_lcbs:
+                partition.write_aln_to_xmfa(lcb, out_f)
 
     #add genbank here, if present
     if len(genbank_ref) != 0:

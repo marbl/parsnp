@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 from collections import namedtuple, defaultdict, Counter
+import bisect
 import os
 from Bio.Align import substitution_matrices
 from itertools import product, combinations
@@ -15,7 +16,9 @@ import numpy as np
 from Bio.AlignIO.MafIO import MafWriter, MafIterator
 from Bio.AlignIO.MauveIO import MauveWriter, MauveIterator
 from logger import logger
+from tqdm import tqdm
 import time
+import spoa
 #%%
 
 
@@ -46,24 +49,33 @@ def parse_xmfa_header(xmfa_file):
     return index_to_gid, gid_to_index
                     
 
-def index_input_sequences(xmfa_file, input_dir):
+def index_input_sequences(xmfa_file, file_list):
+    basename_to_path = {}
+    for f in file_list:
+        basename = str(Path(f).stem)
+        basename_to_path[basename] = f
     gid_to_records = {}
     gid_to_cid_to_index = {}
+    gid_to_index_to_cid = {}
     with open(xmfa_file) as parsnp_fd:
         for line in (line.strip() for line in parsnp_fd):
             if line[:2] == "##":
                 if line.startswith("##SequenceFile"):
-                    p = Path(os.path.join(input_dir + line.split(' ')[1]))
-                    gid_to_records[p.stem] = {record.id: record for record in SeqIO.parse(str(p), "fasta")}
-                    gid_to_cid_to_index[p.stem] = {idx+1: rec.id for (idx, rec) in enumerate(SeqIO.parse(str(p), "fasta"))}
-    return gid_to_records, gid_to_cid_to_index
+                    basename = Path(line.split(' ')[1]).stem
+                    p = Path(basename_to_path[basename])
+                    gid_to_records[p.stem] = {}
+                    gid_to_cid_to_index[p.stem] = {}
+                    gid_to_index_to_cid[p.stem] = {}
+                    for idx, rec in enumerate(SeqIO.parse(str(p), "fasta")):
+                        gid_to_records[p.stem][rec.id] = rec
+                        gid_to_cid_to_index[p.stem][rec.id] = idx + 1
+                        gid_to_index_to_cid[p.stem][idx + 1] = rec.id
+    return gid_to_records, gid_to_cid_to_index, gid_to_index_to_cid
 
 
-
-def xmfa_to_covered(xmfa_file, index_to_gid, gid_to_cid_to_index):
+def xmfa_to_covered(xmfa_file, index_to_gid, gid_to_index_to_cid):
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)/.*')
     idpair_to_segments = defaultdict(list)
-    idpair_to_tree = defaultdict(IntervalTree)
     cluster_to_named_segments = defaultdict(list)
     for aln in tqdm(AlignIO.parse(xmfa_file, "mauve")):
         for seq in aln:
@@ -78,26 +90,25 @@ def xmfa_to_covered(xmfa_file, index_to_gid, gid_to_cid_to_index):
             else:
                 endpos = startpos + aln_len
             
-            idp = IdPair(gid, gid_to_cid_to_index[gid][contig_idx])
+            idp = IdPair(gid, gid_to_index_to_cid[gid][contig_idx])
             seg = Segment(idp, startpos, startpos + aln_len, seq.annotations["strand"])
             idpair_to_segments[idp].append(seg)
-            idpair_to_tree[idp].addi(seg.start, seg.stop)
             cluster_to_named_segments[cluster_idx].append(seg)
     
     for idp in idpair_to_segments:
         idpair_to_segments[idp] = sorted(idpair_to_segments[idp])
-        idpair_to_tree[idp].merge_overlaps()
-    return idpair_to_segments, idpair_to_tree, cluster_to_named_segments
+    return idpair_to_segments, cluster_to_named_segments
 
 
 def run_msa(downstream_segs_to_align, gid_to_records):
     keep_extending = True
     iteration = 0
-    seq_len_desc = stats.describe([seg.stop - seg.start for seg in downstream_segs_to_align])
-    longest_seq = seq_len_desc.minmax[1]
+    seq_lens = [seg.stop - seg.start for seg in downstream_segs_to_align]
+    longest_seq = max(seq_lens)
+    mean_seq_len = np.mean(seq_lens)
     if sum(
-        seq_len_desc.mean*(1 - length_window) <= (seg.stop - seg.start) <= seq_len_desc.mean*(1 + length_window) for seg in downstream_segs_to_align) > len(downstream_segs_to_align)*window_prop:
-        base_length = int(seq_len_desc.mean*(1 + length_window))
+        mean_seq_len*(1 - length_window) <= (seg.stop - seg.start) <= mean_seq_len*(1 + length_window) for seg in downstream_segs_to_align) > len(downstream_segs_to_align)*window_prop:
+        base_length = int(mean_seq_len*(1 + length_window))
     else:
         base_length = BASE_LENGTH
     
@@ -131,7 +142,7 @@ def run_msa(downstream_segs_to_align, gid_to_records):
     return aligned_msa_seqs
 
 
-def extend_clusters(xmfa_file, index_to_gid, gid_to_cid_to_index, idpair_to_segments, idpair_to_tree, cluster_to_named_segments, gid_to_records):
+def extend_clusters(xmfa_file, gid_to_index, gid_to_cid_to_index, idpair_to_segments, cluster_to_named_segments, gid_to_records):
     ret_lcbs = []
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)/.*')
     
@@ -167,29 +178,36 @@ def extend_clusters(xmfa_file, index_to_gid, gid_to_cid_to_index, idpair_to_segm
         new_lcb = MultipleSeqAlignment([])
         # Assumes alignments are always in the same order
         new_bp = []
-        for seq_idx, (covered_seg, uncovered_seg, aln_str) in enumerate(zip(segs, downstream_segs_to_align, aligned_msa_seqs)):
+        for seg_idx, (covered_seg, uncovered_seg, aln_str) in enumerate(zip(segs, downstream_segs_to_align, aligned_msa_seqs)):
             # Update segment in idpair_to_segments
+            if len(aln_str) < MIN_LEN:
+                continue
             new_bp_covered = len(aln_str) - aln_str.count("-")
             # print(f"Extending {covered_seg} by {new_bp_covered}")
             new_bp.append(new_bp_covered)
             new_seq = aln_str
             if covered_seg.strand == 1:
                 new_seg = Segment(covered_seg.idp, uncovered_seg.start, uncovered_seg.start + new_bp_covered, covered_seg.strand)
+                if new_bp_covered > 0:
+                    segs[seg_idx] = Segment(covered_seg.idp, covered_seg.start, new_seg.stop, covered_seg.strand)
             else:
                 aln_str = Seq(aln_str).reverse_complement()
                 new_seg = Segment(covered_seg.idp, covered_seg.start - new_bp_covered, covered_seg.start, covered_seg.strand)
+                if new_bp_covered > 0:
+                    segs[seg_idx] = Segment(covered_seg.idp, new_seg.start, covered_seg.stop, covered_seg.strand)
             
             new_record = SeqRecord(
                 seq=new_seq,
-                id=f"{covered_seg.idp.gid}#{covered_seg.idp.cid}",
+                id=f"cluster{cluster_idx} s{gid_to_cid_to_index[covered_seg.idp.gid][covered_seg.idp.cid]}:p{new_seg.start if new_seg.strand == 1 else new_seg.stop}",
+                name=gid_to_index[covered_seg.idp.gid],
                 annotations={"start": new_seg.start, "end": new_seg.stop, "strand": new_seg.strand}
             )
+
             # if covered_seg.strand == 1:
             new_lcb.append(new_record)
-            if new_bp_covered > 0:
-                idpair_to_tree[covered_seg.idp].addi(new_seg.start, new_seg.stop)
 
-        ret_lcbs.append(new_lcb)
+        if len(new_lcb) > 0:
+            ret_lcbs.append(new_lcb)
     return ret_lcbs
 
 
