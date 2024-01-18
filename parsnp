@@ -1675,6 +1675,7 @@ SETTINGS:
 
     # This is the stuff for LCB extension:
     if args.extend_lcbs:
+        logger.warning("The LCB extension module is experimental. Runtime may be significantly increased and extended alignments may not be as high quality as the original core-genome. Extensions off of existing LCBs are in a separate xmfa file.")
         import partition 
         import extend as ext
 
