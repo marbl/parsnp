@@ -107,12 +107,13 @@ def run_msa(downstream_segs_to_align, gid_to_records):
     seq_lens = [seg.stop - seg.start for seg in downstream_segs_to_align]
     longest_seq = max(seq_lens)
     mean_seq_len = np.mean(seq_lens)
-    if sum(
-        mean_seq_len*(1 - length_window) <= (seg.stop - seg.start) <= mean_seq_len*(1 + length_window) for seg in downstream_segs_to_align) > len(downstream_segs_to_align)*window_prop:
-        base_length = int(mean_seq_len*(1 + length_window))
-    else:
-        base_length = BASE_LENGTH
+    # if sum(
+        # mean_seq_len*(1 - length_window) <= (seg.stop - seg.start) <= mean_seq_len*(1 + length_window) for seg in downstream_segs_to_align) > len(downstream_segs_to_align)*window_prop:
+        # base_length = int(mean_seq_len*(1 + length_window))
+    # else:
+        # base_length = BASE_LENGTH
     
+    base_length = BASE_LENGTH
     while keep_extending:
         seqs_to_align = ["A" + (str(
                 gid_to_records[seg.idp.gid][seg.idp.cid].seq[seg.start:seg.stop] if seg.strand == 1
