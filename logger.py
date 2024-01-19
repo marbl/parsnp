@@ -1,4 +1,5 @@
 import logging
+import io
 ############################################# Logging ##############################################
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
 #These are the sequences need to get colored ouput
@@ -13,6 +14,28 @@ ENDC = ""#CSI+'0m'
 RESET_SEQ = "\033[0m"
 COLOR_SEQ = "\033[1;%dm"
 BOLD_SEQ = "\033[1m"
+
+MIN_TQDM_INTERVAL=30
+
+
+# Logging redirect copied from https://stackoverflow.com/questions/14897756/python-progress-bar-through-logging-module
+class TqdmToLogger(io.StringIO):
+    """
+        Output stream for TQDM which will output to logger module instead of
+        the StdOut.
+    """
+    logger = None
+    level = None
+    buf = ''
+    def __init__(self,logger,level=None):
+        super(TqdmToLogger, self).__init__()
+        self.logger = logger
+        self.level = level or logging.INFO
+    def write(self,buf):
+        self.buf = buf.strip('\r\n\t ')
+    def flush(self):
+        self.logger.log(self.level, self.buf)
+
 
 def formatter_message(message, use_color = True):
     if use_color:

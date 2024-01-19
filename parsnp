@@ -5,19 +5,16 @@
 
 '''
 
-import os, sys, string, getopt, random,subprocess, time,operator, math, datetime,numpy #pysam
+import os, sys, string, random, subprocess, time, operator, math, datetime, numpy #pysam
 from collections import defaultdict
-import csv
 import shutil
 import shlex
 from tempfile import TemporaryDirectory
 import re
 import logging
-from logger import logger
-import multiprocessing
+from logger import logger, TqdmToLogger, MIN_TQDM_INTERVAL
 import argparse
 import signal
-import inspect
 from multiprocessing import Pool
 from Bio import SeqIO
 from glob import glob
@@ -27,7 +24,7 @@ from pathlib import Path
 import extend as ext
 from tqdm import tqdm
 
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 reroot_tree = True #use --midpoint-reroot
 random_seeded = random.Random(42)
 
@@ -149,7 +146,7 @@ def run_phipack(query,seqlen,workingdir):
     currdir = os.getcwd()
     os.chdir(workingdir)
     command = "Profile -o -v -n %d -w 100 -m 100 -f %s > %s.out"%(seqlen,query,query)
-    run_command(command,1, prepend_time=True)
+    run_command(command, 1)
     os.chdir(currdir)
 
 def run_fasttree(query,workingdir,recombination_sites):
@@ -685,15 +682,20 @@ def create_output_directory(output_dir):
 
     if os.path.exists(output_dir):
         logger.warning(f"Output directory {output_dir} exists, all results will be overwritten")
-        shutil.rmtree(output_dir)
+        if os.path.exists(output_dir + "/partition"):
+            shutil.rmtree(output_dir + "/partition/")
+        if os.path.exists(output_dir + "/config/"):
+            shutil.rmtree(output_dir + "/config/")
+        if os.path.exists(output_dir + "/log/"):
+            shutil.rmtree(output_dir + "/log/")
     elif output_dir == "[P_CURRDATE_CURRTIME]":
         today = datetime.datetime.now()
         timestamp = "P_" + today.isoformat().replace("-", "_").replace(".", "").replace(":", "").replace("T", "_")
         output_dir = os.getcwd() + os.sep + timestamp
-    os.makedirs(output_dir)
-    os.makedirs(os.path.join(output_dir, "tmp"))
-    os.makedirs(os.path.join(output_dir, "log"))
-    os.makedirs(os.path.join(output_dir, "config"))
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "tmp"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "log"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "config"), exist_ok=True)
     return output_dir
 
 
@@ -1645,7 +1647,11 @@ SETTINGS:
         logger.info("Running partitions...")
         good_chunks = set(chunk_labels)
         with Pool(args.threads) as pool:
-            return_codes = tqdm(pool.imap(run_parsnp_aligner, chunk_output_dirs, chunksize=1), total=len(chunk_output_dirs))
+            return_codes = tqdm(
+                pool.imap(run_parsnp_aligner, chunk_output_dirs, chunksize=1), 
+                total=len(chunk_output_dirs), 
+                file=TqdmToLogger(logger,level=logging.INFO),
+                mininterval=MIN_TQDM_INTERVAL)
             for cl, rc in zip(chunk_labels, return_codes):
                 if rc != 0:
                     logger.error(f"Partition {cl} failed...")
@@ -1666,51 +1672,33 @@ SETTINGS:
         partition.merge_xmfas(partition_output_dir, chunk_labels, xmfa_out_f, num_clusters, args.threads)
 
 
-
-    run_lcb_trees = 0
+    parsnp_output = f"{outputDir}/parsnp.xmfa"
 
     # This is the stuff for LCB extension:
-    annotation_dict = {}
-    #TODO always using xtrafast?
-    parsnp_output = f"{outputDir}/parsnp.xmfa"
     if args.extend_lcbs:
-        xmfa_file = f"{outputDir}/parsnp.xmfa"
-        with TemporaryDirectory() as temp_directory:
-            original_maf_file = f"{outputDir}/parsnp-original.maf"
-            extended_xmfa_file = f"{outputDir}/parsnp-extended.xmfa"
-            fname_contigid_to_length, fname_contigidx_to_header, fname_to_seqrecord = ext.get_sequence_data(
-                    ref,
-                    finalfiles,
-                    index_files=False)
-            fname_to_contigid_to_coords, fname_header_to_gcontigidx = ext.xmfa_to_maf(
-                    xmfa_file,
-                    original_maf_file,
-                    fname_contigidx_to_header,
-                    fname_contigid_to_length)
-            packed_write_result = ext.write_intercluster_regions(finalfiles + [ref], temp_directory, fname_to_contigid_to_coords)
-            fname_contigid_to_cluster_dir_to_length, fname_contigid_to_cluster_dir_to_adjacent_cluster = packed_write_result
-            cluster_files = glob(f"{temp_directory}/*.fasta")
-            clusterdir_expand, clusterdir_len = ext.get_new_extensions(
-                    cluster_files,
-                    args.match_score,
-                    args.mismatch_penalty,
-                    args.gap_penalty)
-            ext.write_extended_xmfa(
-                    original_maf_file,
-                    extended_xmfa_file,
-                    temp_directory,
-                    clusterdir_expand,
-                    clusterdir_len,
-                    fname_contigid_to_cluster_dir_to_length,
-                    fname_contigid_to_cluster_dir_to_adjacent_cluster,
-                    fname_header_to_gcontigidx,
-                    fname_contigid_to_length,
-                    args.extend_ani_cutoff,
-                    args.extend_indel_cutoff,
-                    threads)
-            parsnp_output = extended_xmfa_file
-            os.remove(original_maf_file)
+        logger.warning("The LCB extension module is experimental. Runtime may be significantly increased and extended alignments may not be as high quality as the original core-genome. Extensions off of existing LCBs are in a separate xmfa file.")
+        import partition 
+        import extend as ext
 
+        orig_parsnp_xmfa = parsnp_output
+        extended_parsnp_xmfa = orig_parsnp_xmfa + ".extended"
+
+        # Index input fasta files and original xmfa 
+        index_to_gid, gid_to_index = ext.parse_xmfa_header(orig_parsnp_xmfa)
+        gid_to_records, gid_to_cid_to_index, gid_to_index_to_cid = ext.index_input_sequences(orig_parsnp_xmfa, finalfiles + [ref])
+
+        # Get covered regions of xmfa file
+        idpair_to_segments, cluster_to_named_segments = ext.xmfa_to_covered(orig_parsnp_xmfa, index_to_gid, gid_to_index_to_cid)
+
+        # Extend clusters
+        logger.info(f"Extending LCBs with SPOA...")
+        new_lcbs = ext.extend_clusters(orig_parsnp_xmfa, gid_to_index, gid_to_cid_to_index, idpair_to_segments, cluster_to_named_segments, gid_to_records)
+
+        # Write output
+        partition.copy_header(orig_parsnp_xmfa, extended_parsnp_xmfa)
+        with open(extended_parsnp_xmfa, 'a') as out_f:
+            for lcb in new_lcbs:
+                partition.write_aln_to_xmfa(lcb, out_f)
 
     #add genbank here, if present
     if len(genbank_ref) != 0:

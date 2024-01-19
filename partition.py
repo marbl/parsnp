@@ -7,6 +7,7 @@ import tempfile
 import os
 import copy
 import math
+import logging
 from multiprocessing import Pool
 from functools import partial
 from collections import namedtuple, defaultdict, Counter
@@ -18,7 +19,7 @@ from Bio import AlignIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from logger import logger
+from logger import logger, TqdmToLogger, MIN_TQDM_INTERVAL
 from tqdm import tqdm
 
 
@@ -69,7 +70,7 @@ def get_interval(aln: MultipleSeqAlignment) -> Tuple[int, IntervalType]:
     """
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)/.*')
     seq = aln[0]
-    aln_len = seq.annotations["end"] - seq.annotations["start"] + 1
+    aln_len = seq.annotations["end"] - seq.annotations["start"] 
     cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(seq.id).groups()]
 
     if seq.annotations["strand"] == -1:
@@ -122,7 +123,7 @@ def trim(aln: MultipleSeqAlignment,
     # Look for the record in the LCB that represents the reference genome
     for rec in aln:
         if int(rec.name) == seqidx:
-            aln_len = rec.annotations["end"] - rec.annotations["start"] + 1
+            aln_len = rec.annotations["end"] - rec.annotations["start"]
             cluster_idx, contig_idx, super_startpos = [int(x) for x in seqid_parser.match(rec.id).groups()]
 
             if rec.annotations["strand"] == -1:
@@ -185,7 +186,7 @@ def trim(aln: MultipleSeqAlignment,
             # orig_seq = copy.deepcopy(seq)
             new_rec = aln_seqs[seq_idx]
             
-            aln_len = rec.annotations["end"] - rec.annotations["start"] + 1
+            aln_len = rec.annotations["end"] - rec.annotations["start"]
             cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(rec.id).groups()]
             left_bases_trim = 0
             right_bases_trim = 0
@@ -634,7 +635,11 @@ def trim_xmfas(
     trim_partial = partial(trim_single_xmfa, intersected_interval_dict=intersected_interval_dict)
     orig_xmfa_files = [f"{partition_output_dir}/{CHUNK_PREFIX}-{cl}-out/parsnp.xmfa" for cl in chunk_labels]
     with Pool(threads) as pool:
-        num_clusters_per_xmfa = list(tqdm(pool.imap_unordered(trim_partial, orig_xmfa_files), total=len(orig_xmfa_files)))
+        num_clusters_per_xmfa = list(tqdm(
+            pool.imap_unordered(trim_partial, orig_xmfa_files), 
+            total=len(orig_xmfa_files), 
+            file=TqdmToLogger(logger,level=logging.INFO),
+            mininterval=MIN_TQDM_INTERVAL))
         #TODO clean up
         if not all(num_clusters_per_xmfa[0][1] == nc for xmfa, nc in num_clusters_per_xmfa):
             logger.critical("One of the partitions has a different number of clusters after trimming...")
@@ -712,7 +717,9 @@ def merge_xmfas(
         with Pool(threads) as pool:
             tmp_xmfas = list(tqdm(
                     pool.imap_unordered(merge_single_LCB_star_partial, enumerate(pairs_list)), 
-                    total=num_clusters)
+                    total=num_clusters,
+                    file=TqdmToLogger(logger,level=logging.INFO),
+                    mininterval=MIN_TQDM_INTERVAL)
             )
     
         with open(xmfa_out_f, 'a') as xmfa_out_handle:
@@ -720,71 +727,5 @@ def merge_xmfas(
                 tmp_xmfa = f"{tmp_directory}/cluster-{cluster_idx}.temp" 
                 with open(tmp_xmfa) as tx:
                     xmfa_out_handle.write(tx.read())
-
-
-if __name__ == "__main__":
-    args = parse_args()
-    os.makedirs(args.output_dir, exist_ok=True)
-    
-    query_files = list()
-    for arg_path in args.sequences:
-        if arg_path.endswith(".txt"):
-            with open(arg_path) as input_list_handle:
-                for line in input_list_handle:
-                    query_files.append(line.strip())
-        elif any(arg_path.endswith(suff) for suff in FASTA_SUFFIX_LIST):
-            query_files.append(arg_path)
-        elif os.path.isdir(arg_path):
-            for f in os.listdir(arg_path): 
-                if any(f.endswith(suff) for suff in FASTA_SUFFIX_LIST):
-                    query_files.append(f"{arg_path}/{f}")
-
-    full_query_list_path = f"{args.output_dir}/input-list.txt"
-    with open(full_query_list_path, 'w') as input_list_handle:
-        for qf in query_files:
-            input_list_handle.write(qf + "\n")
-
-    partition_output_dir = f"{args.output_dir}/partition"
-    partition_list_dir = f"{partition_output_dir}/input-lists"
-    os.makedirs(partition_list_dir, exist_ok=True)
-    run_command(f"split -l {args.partition_size} -a 5 --additional-suffix '.txt' {full_query_list_path} {partition_list_dir}/{CHUNK_PREFIX}-")
-
-    chunk_label_parser = re.compile(f'{CHUNK_PREFIX}-(.*).txt')
-    chunk_labels = []
-    for partition_list_file in os.listdir(partition_list_dir):
-        chunk_labels.append(chunk_label_parser.search(partition_list_file).groups()[0])
-
-    parsnp_commands = []
-    for cl in chunk_labels:
-        chunk_output_dir = f"{partition_output_dir}/{CHUNK_PREFIX}-{cl}-out"
-        os.makedirs(chunk_output_dir, exist_ok=True)
-        chunk_command = f"./parsnp -d {partition_list_dir}/{CHUNK_PREFIX}-{cl}.txt -r {args.reference} -o {chunk_output_dir} "
-        chunk_command += args.parsnp_flags
-        chunk_command += f" > {chunk_output_dir}/parsnp.stdout 2> {chunk_output_dir}/parsnp.stderr"
-        parsnp_commands.append(chunk_command)
-
-    good_chunks = set(chunk_labels)
-    run_command_nocheck = partial(run_command, check=False)
-    with Pool(args.threads) as pool:
-        return_codes = tqdm(pool.imap(run_command_nocheck, parsnp_commands, chunksize=1), total=len(parsnp_commands))
-        for cl, rc in zip(chunk_labels, return_codes):
-            if rc != 0:
-                logger.error("Partition {cl} failed...")
-                good_chunks.remove(cl)
-        
-    chunk_labels = list(good_chunks)
-
-    logger.info("Computing intersection of all partition LCBs...")
-    chunk_to_intvervaldict = get_chunked_intervals(partition_output_dir, chunk_labels)
-    intersected_interval_dict = get_intersected_intervals(chunk_to_intvervaldict)
-    
-    logger.info("Trimming partitioned XMFAs back to intersected intervals...")
-    num_clusters = trim_xmfas(partition_output_dir, chunk_labels, intersected_interval_dict, args.threads)
-
-    os.makedirs(f"{args.output_dir}/merged-out/", exist_ok=True)
-    xmfa_out_f =  f"{args.output_dir}/merged-out/parsnp.xmfa"
-
-    logger.info(f"Merging trimmed XMFA files into a single XMFA at {xmfa_out_f}")
-    merge_xmfas(partition_output_dir, chunk_labels, xmfa_out_f, num_clusters, args.threads)
 
 
