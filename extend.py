@@ -3,6 +3,7 @@ from Bio.Seq import Seq
 from Bio.SeqIO import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from glob import glob
+import logging
 import tempfile
 from pathlib import Path
 import re
@@ -15,7 +16,7 @@ from itertools import product, combinations
 import numpy as np
 from Bio.AlignIO.MafIO import MafWriter, MafIterator
 from Bio.AlignIO.MauveIO import MauveWriter, MauveIterator
-from logger import logger
+from logger import logger, TqdmToLogger, MIN_TQDM_INTERVAL
 from tqdm import tqdm
 import time
 import spoa
@@ -77,7 +78,7 @@ def xmfa_to_covered(xmfa_file, index_to_gid, gid_to_index_to_cid):
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)/.*')
     idpair_to_segments = defaultdict(list)
     cluster_to_named_segments = defaultdict(list)
-    for aln in tqdm(AlignIO.parse(xmfa_file, "mauve")):
+    for aln in AlignIO.parse(xmfa_file, "mauve"):
         for seq in aln:
             # Skip reference for now...
             aln_len = seq.annotations["end"] - seq.annotations["start"]
@@ -146,7 +147,11 @@ def extend_clusters(xmfa_file, gid_to_index, gid_to_cid_to_index, idpair_to_segm
     ret_lcbs = []
     seqid_parser = re.compile(r'^cluster(\d+) s(\d+):p(\d+)/.*')
     
-    for aln_idx, aln in enumerate(tqdm(AlignIO.parse(xmfa_file, "mauve"), total=len(cluster_to_named_segments))):
+    for aln_idx, aln in enumerate(tqdm(
+            AlignIO.parse(xmfa_file, "mauve"), 
+            total=len(cluster_to_named_segments),
+            file=TqdmToLogger(logger, level=logging.INFO),
+            mininterval=MIN_TQDM_INTERVAL)):
         # validate_lcb(aln, gid_to_records, parsnp_header=True)
         seq = aln[0]
         cluster_idx, contig_idx, startpos = [int(x) for x in seqid_parser.match(seq.id).groups()]

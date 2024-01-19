@@ -7,6 +7,7 @@ import tempfile
 import os
 import copy
 import math
+import logging
 from multiprocessing import Pool
 from functools import partial
 from collections import namedtuple, defaultdict, Counter
@@ -18,7 +19,7 @@ from Bio import AlignIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from logger import logger
+from logger import logger, TqdmToLogger, MIN_TQDM_INTERVAL
 from tqdm import tqdm
 
 
@@ -634,7 +635,11 @@ def trim_xmfas(
     trim_partial = partial(trim_single_xmfa, intersected_interval_dict=intersected_interval_dict)
     orig_xmfa_files = [f"{partition_output_dir}/{CHUNK_PREFIX}-{cl}-out/parsnp.xmfa" for cl in chunk_labels]
     with Pool(threads) as pool:
-        num_clusters_per_xmfa = list(tqdm(pool.imap_unordered(trim_partial, orig_xmfa_files), total=len(orig_xmfa_files)))
+        num_clusters_per_xmfa = list(tqdm(
+            pool.imap_unordered(trim_partial, orig_xmfa_files), 
+            total=len(orig_xmfa_files), 
+            file=TqdmToLogger(logger,level=logging.INFO),
+            mininterval=MIN_TQDM_INTERVAL))
         #TODO clean up
         if not all(num_clusters_per_xmfa[0][1] == nc for xmfa, nc in num_clusters_per_xmfa):
             logger.critical("One of the partitions has a different number of clusters after trimming...")
@@ -712,7 +717,9 @@ def merge_xmfas(
         with Pool(threads) as pool:
             tmp_xmfas = list(tqdm(
                     pool.imap_unordered(merge_single_LCB_star_partial, enumerate(pairs_list)), 
-                    total=num_clusters)
+                    total=num_clusters,
+                    file=TqdmToLogger(logger,level=logging.INFO),
+                    mininterval=MIN_TQDM_INTERVAL)
             )
     
         with open(xmfa_out_f, 'a') as xmfa_out_handle:
