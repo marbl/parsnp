@@ -5,19 +5,16 @@
 
 '''
 
-import os, sys, string, getopt, random,subprocess, time,operator, math, datetime,numpy #pysam
+import os, sys, string, random, subprocess, time, operator, math, datetime, numpy #pysam
 from collections import defaultdict
-import csv
 import shutil
 import shlex
 from tempfile import TemporaryDirectory
 import re
 import logging
 from logger import logger, TqdmToLogger, MIN_TQDM_INTERVAL
-import multiprocessing
 import argparse
 import signal
-import inspect
 from multiprocessing import Pool
 from Bio import SeqIO
 from glob import glob
@@ -149,7 +146,7 @@ def run_phipack(query,seqlen,workingdir):
     currdir = os.getcwd()
     os.chdir(workingdir)
     command = "Profile -o -v -n %d -w 100 -m 100 -f %s > %s.out"%(seqlen,query,query)
-    run_command(command,1, prepend_time=True)
+    run_command(command, 1)
     os.chdir(currdir)
 
 def run_fasttree(query,workingdir,recombination_sites):

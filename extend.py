@@ -2,23 +2,14 @@ from Bio import AlignIO, SeqIO
 from Bio.Seq import Seq
 from Bio.SeqIO import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from glob import glob
 import logging
-import tempfile
 from pathlib import Path
 import re
-import subprocess
 from collections import namedtuple, defaultdict, Counter
 import bisect
-import os
-from Bio.Align import substitution_matrices
-from itertools import product, combinations
 import numpy as np
-from Bio.AlignIO.MafIO import MafWriter, MafIterator
-from Bio.AlignIO.MauveIO import MauveWriter, MauveIterator
-from logger import logger, TqdmToLogger, MIN_TQDM_INTERVAL
 from tqdm import tqdm
-import time
+from logger import logger, TqdmToLogger, MIN_TQDM_INTERVAL
 import spoa
 #%%
 
