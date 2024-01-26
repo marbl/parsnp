@@ -8,6 +8,7 @@
 import os, sys, string, random, subprocess, time, operator, math, datetime, numpy #pysam
 from collections import defaultdict
 import shutil
+import multiprocessing
 import shlex
 from tempfile import TemporaryDirectory
 import re
@@ -1210,8 +1211,13 @@ SETTINGS:
         (len(outputDir)+17)*"*"))
 
     # If we requested more threads than available, give a warning.
-    if len(os.sched_getaffinity(0)) < threads:
-        logger.warning("You have asked to use more threads than you have available on your machine. This may lead to serious performance degredation with RAxML.")
+    try:
+        if len(os.sched_getaffinity(0)) < threads:
+            logger.warning("You have asked to use more threads than you have available on your machine. This may lead to serious performance degredation with RAxML.")
+    except AttributeError:
+        if multiprocessing.cpu_count() < threads:
+            logger.warning("You have asked to use more threads than you have available on your machine. This may lead to serious performance degredation with RAxML.")
+
     logger.info("<<Parsnp started>>")
 
     #1)read fasta files (contigs/scaffolds/finished/DBs/dirs)
