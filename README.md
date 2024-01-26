@@ -14,7 +14,7 @@ conda install parsnp
 
 ## From source
 
-To build Parsnp from source, users must have automake 1.15, autoconf, and libtool installed. Parsnp also requires RaxML, Phipack, Harvest-tools, and numpy. Some additional features require Mash, FastANI and FastTree. All of these packages are available via Conda (many on the Bioconda channel).
+To build Parsnp from source, users must have automake 1.15, autoconf, and libtool installed. Parsnp also requires RaxML (or FastTree), Harvest-tools, and numpy. Some additional features require  pySPOA, Mash, FastANI, and Phipack. All of these packages are available via Conda (many on the Bioconda channel).
 
 ### Build instructions
 First, you must build the Muscle library
