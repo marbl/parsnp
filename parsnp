@@ -1452,6 +1452,7 @@ SETTINGS:
         ref = auto_ref
 
     finalfiles = sorted(finalfiles)
+    random_seeded.shuffle(finalfiles)
     totseqs = len(finalfiles)
 
     #initiate parallelPhiPack tasks
