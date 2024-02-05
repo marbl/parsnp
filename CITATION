@@ -1,8 +1,13 @@
-[Parsnp]
+[Parsnp 2]
+   Kille B, Nute MG, Huang V, Kim E, Phillippy AM, Treangen TJ:
+     Parsnp 2.0: Scalable Core-Genome Alignment for Massive Microbial Datasets. 
+     bioRxiv (2024). doi: https://doi.org/10.1101/2024.01.30.577458
 
+[Parsnp 1]
    Treangen TJ*, Ondov BD*, Koren S, Phillippy AM:
      The Harvest suite for rapid core-genome alignment and visualization of thousands of intraspecific microbial genomes.
      Genome Biology (2014). doi: http://dx.doi.org/10.1186/s13059-014-0524-x
+
 
 * These authors contributed equally to this work
 
