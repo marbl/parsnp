@@ -1402,7 +1402,7 @@ SETTINGS:
                         for line in results:
                             # FastANI results file -> Query, Ref, ANI val, extra stuff,,,
                             line = line.split('\t')
-                            if float(line[2]) >= min_ani_cutoff and (int(line[3]) / int(line[4])) * 100 > args.min_ref_cov:
+                            if float(line[2]) >= min_ani_cutoff and (int(line[3]) / int(line[4])) * 100 >= args.min_ref_cov:
                                 genome_to_genomes[line[1]].append(line[0])
 
                         ani_ref = max(genome_to_genomes, key=(lambda key: len(genome_to_genomes[key])))
