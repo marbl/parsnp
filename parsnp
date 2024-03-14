@@ -25,7 +25,7 @@ from pathlib import Path
 import extend as ext
 from tqdm import tqdm
 
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 reroot_tree = True #use --midpoint-reroot
 random_seeded = random.Random(42)
 
@@ -1402,7 +1402,7 @@ SETTINGS:
                         for line in results:
                             # FastANI results file -> Query, Ref, ANI val, extra stuff,,,
                             line = line.split('\t')
-                            if float(line[2]) >= min_ani_cutoff and (int(line[3]) / int(line[4])) * 100 > args.min_ref_cov:
+                            if float(line[2]) >= min_ani_cutoff and (int(line[3]) / int(line[4])) * 100 >= args.min_ref_cov:
                                 genome_to_genomes[line[1]].append(line[0])
 
                         ani_ref = max(genome_to_genomes, key=(lambda key: len(genome_to_genomes[key])))
@@ -1753,7 +1753,7 @@ SETTINGS:
                 command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks"
 
             run_logged_command(command, outputDir=outputDir, label="fasttree")
-
+            shutil.move(f"{outputDir}/log/fasttree.out", f"{outputDir}/parsnp.tree")
 
 
         #7)reroot to midpoint
