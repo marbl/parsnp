@@ -1753,7 +1753,7 @@ SETTINGS:
                 command = "fasttree -nt -quote -gamma -slow -boot 100 "+outputDir+os.sep+"parsnp.snps.mblocks"
 
             run_logged_command(command, outputDir=outputDir, label="fasttree")
-
+            shutil.move(f"{outputDir}/log/fasttree.out", f"{outputDir}/parsnp.tree")
 
 
         #7)reroot to midpoint
