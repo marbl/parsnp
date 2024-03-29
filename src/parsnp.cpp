@@ -1957,7 +1957,7 @@ void Aligner::setMumi(TRegion r1, vector<TMum>& mums, bool anchors = true, bool 
         
         time ( &start);
         if(anchors)
-            cerr << "        Calculting pairwise MUMi distances...\n";
+            cerr << "        Calculating pairwise MUMi distances...\n";
         
         
         FILE* mumifile;
