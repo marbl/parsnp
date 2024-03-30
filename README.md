@@ -1,9 +1,5 @@
 Parsnp is a command-line-tool for efficient microbial core genome alignment and SNP detection. Parsnp was designed to work in tandem with Gingr, a flexible platform for visualizing genome alignments and phylogenetic trees; both Parsnp and Gingr form part of the Harvest suite :
 
-- [Harvest project page](http://harvest.readthedocs.org)
-  -  url: http://harvest.readthedocs.org
-
-
 
 # Installation
 ## From conda
@@ -84,3 +80,9 @@ More examples can be found in the [readthedocs tutorial](https://harvest.readthe
 CITATION provides details on how to cite Parsnp.
 
 LICENSE provides licensing information.
+
+
+- The [Harvest project page](http://harvest.readthedocs.org) provides examples of how to use Gingr and HarvestTools with Parsnp, however the Parsnp examples are not up-to-date with the current interface.
+
+
+
