@@ -73,7 +73,14 @@ More examples can be found in the [readthedocs tutorial](https://harvest.readthe
 * `parsnp.tree` is the resulting phylogeny.
 * If run in partition mode, Parsnp will produce a `partition` folder in the output directory, which contains the output of each of the partitioned runs. 
 
+### XMFA format
+The output XMFA file contains a header section mapping contig names to indices. Following the header section, the LCBs/clusters are reported in the XMFA format, where the ID for each record in an LCB is formatted as:
 
+```
+[fileidx]:[concat_start]-[concat_end] [strand] cluster[x] s[contig_idx]:p[contig_pos]
+```
+
+The `concat_start` and `concat_end` values are internal to parsnp. The sequence for this record can be found in the file at index `fileidx` (these are declared at the top of the xmfa) on the `contig_idx`th contig starting at position `contig_pos`. 
 
 ## Misc
 
