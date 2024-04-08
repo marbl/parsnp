@@ -1,9 +1,5 @@
 Parsnp is a command-line-tool for efficient microbial core genome alignment and SNP detection. Parsnp was designed to work in tandem with Gingr, a flexible platform for visualizing genome alignments and phylogenetic trees; both Parsnp and Gingr form part of the Harvest suite :
 
-- [Harvest project page](http://harvest.readthedocs.org)
-  -  url: http://harvest.readthedocs.org
-
-
 
 
 # Installation
@@ -41,6 +37,15 @@ The `--no-partition` flag allows users to run all query genomes at once.
 * If run in partition mode, Parsnp will produce a `partition` folder in the output directory, which contains the output of each of the partitioned runs. 
 
 
+### XMFA format
+The output XMFA file contains a header section mapping contig names to indices. Following the header section, the LCBs/clusters are reported in the XMFA format, where the ID for each record in an LCB is formatted as:
+
+```
+[fileidx]:[concat_start]-[concat_end] [strand] cluster[x] s[contig_idx]:p[contig_pos]
+```
+
+The `concat_start` and `concat_end` values are internal to parsnp. The sequence for this record can be found in the file at index `fileidx` (these are declared at the top of the xmfa) on the `contig_idx`th contig starting at position `contig_pos`. 
+
 ## Building from source 
 
 To build Parsnp from source, users must have automake 1.15, autoconf, and libtool installed. Parsnp also requires RaxML (or FastTree), Harvest-tools, and numpy. Some additional features require  pySPOA, Mash, FastANI, and Phipack. All of these packages are available via Conda (many on the Bioconda channel).
@@ -77,9 +82,14 @@ Note that the `parsnp` executable in `bin/` is not the same as the one in the ro
 ## OSX Users (Catalina)
 Recent OSX have a Gatekeeper, that's designed to ensure that only softwre from known developers runs on  tour Mac. Please refer to this link to enable the binaries shipped with Parsnp to run: https://support.apple.com/en-us/HT202491
 
-
 ## Misc
 
 CITATION provides details on how to cite Parsnp.
 
 LICENSE provides licensing information.
+
+
+- The [Harvest project page](http://harvest.readthedocs.org) provides examples of how to use Gingr and HarvestTools with Parsnp, however the Parsnp examples are not up-to-date with the current interface.
+
+
+
