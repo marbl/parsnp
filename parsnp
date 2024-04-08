@@ -430,14 +430,14 @@ def parse_args():
 
     partition_args = parser.add_argument_group("Sequence Partitioning")
     partition_args.add_argument(
-        "--partition",
+        "--no-partition",
         action='store_true',
-        help="Evenly split input sequences across separate runs of parsnp, then merge results")
+        help="Run all query genomes in single parsnp alignment, no partitioning.")
     partition_args.add_argument(
-        "--partition-size",
+        "--min-partition-size",
         type=int,
         default=50,
-        help="Number of sequences in a partitioned run of parsnp")
+        help="Minimum size of a partition. Input genomes will be split evenly across partitions at least this large.")
 
     extend_args = parser.add_argument_group("LCB Extension")
     extend_args.add_argument(
@@ -1459,7 +1459,9 @@ SETTINGS:
     run_recomb_filter = 0
 
     #3)run parsnp (cores, grid?)
-    if not args.partition:
+    if args.no_partition or len(finalfiles) < 2*args.min_partition_size:
+        if len(finalfiles) < 2*args.min_partition_size:
+            logger.info(f"Too few genomes to run partitions of size >{args.min_partition_size}. Running all genomes at once.")
         # Editing the ini file to be used for parnsp-aligner (which is different from parsnip as a mumi finder)
         if not inifile_exists:
             write_inifile_2(inifiled, outputDir, unaligned, args, auto_ref, query, finalfiles, ref, args.threads)
@@ -1620,16 +1622,15 @@ SETTINGS:
 
     else:
         import partition 
-
-        if len(finalfiles) % args.partition_size == 1:
-            logger.warning("Incrementing partition size by 1 to avoid having a remainder partition of size 1")
-            args.partition_size += 1
+        full_partitions = len(finalfiles) // args.min_partition_size
+        effective_partition_size = len(finalfiles) // full_partitions
+        logger.info(f"Setting the partition size to {effective_partition_size}")
         partition_output_dir = f"{outputDir}/partition"
         partition_list_dir = f"{partition_output_dir}/input-lists"
         os.makedirs(partition_list_dir, exist_ok=True)
-        for partition_idx in range(math.ceil(len(finalfiles) / args.partition_size)):
+        for partition_idx in range(math.ceil(len(finalfiles) / effective_partition_size)):
             with open(f"{partition_list_dir}/{partition.CHUNK_PREFIX}-{partition_idx:010}.txt", 'w') as part_out:
-                for qf in finalfiles[partition_idx*args.partition_size : (partition_idx+1)*args.partition_size]:
+                for qf in finalfiles[partition_idx*effective_partition_size : (partition_idx+1)*effective_partition_size]:
                     part_out.write(f"{qf}\n")
 
         chunk_label_parser = re.compile(f'{partition.CHUNK_PREFIX}-(.*).txt')
