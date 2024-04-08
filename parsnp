@@ -1453,7 +1453,7 @@ SETTINGS:
 
     finalfiles = sorted(finalfiles)
     random_seeded.shuffle(finalfiles)
-    totseqs = len(finalfiles)
+    totseqs = len(finalfiles) + 1 # Add one to include reference
 
     #initiate parallelPhiPack tasks
     run_recomb_filter = 0
