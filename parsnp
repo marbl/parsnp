@@ -6,7 +6,7 @@
 '''
 
 import os, sys, string, random, subprocess, time, operator, math, datetime, numpy #pysam
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import shutil
 import multiprocessing
 import shlex
@@ -17,7 +17,7 @@ from logger import logger, TqdmToLogger, MIN_TQDM_INTERVAL
 import argparse
 import signal
 from multiprocessing import Pool
-from Bio import SeqIO
+from Bio import SeqIO, AlignIO
 from glob import glob
 from pathlib import Path
 
@@ -141,6 +141,54 @@ def handler(signum, frame):
 
 signal.signal(signal.SIGINT, handler)
 
+def xmfa_to_maf(xmfa_path, maf_path, all_input_paths):
+    sample_delim = '#'
+    SeqInfo = namedtuple("SeqInfo", "cid seq_length")
+    hdr_block_pattern = re.compile("##SequenceIndex (\d+)\n##SequenceFile (.+)\n##SequenceHeader >\s*(\S+).*\n##SequenceLength (\d+)bp")
+    idx_to_fname = {}
+    ref_fname = ""
+    with open(xmfa_path) as xmfa_in:
+        next(xmfa_in) # skip version
+        line = next(xmfa_in)
+        seq_count = int(re.match("#SequenceCount (\d+)\n", line).groups()[0])
+        for i in range(seq_count):
+            info_block = ""
+            for _ in range(4):
+                info_block += next(xmfa_in)
+            parsed_info = hdr_block_pattern.match(info_block).groups()
+            fname = parsed_info[1]
+            if fname.endswith(".ref") and ref_fname == "":
+                fname = fname[:-4]
+                ref_fname = fname
+            idx_to_fname[parsed_info[0]] = fname
+
+    fname_to_info = defaultdict(list)
+    for f in all_input_paths:
+        fname = Path(f).name
+        if fname.endswith(".ref"):
+            fname = fname[:-4]
+        fname_to_info[fname] = [SeqInfo(rec.id.split(" ")[0], len(rec.seq)) for rec in SeqIO.parse(f, "fasta")]
+
+    seqid_pattern = re.compile(r'^cluster(\d+) s(\d+):p(\d+)')
+    with open(maf_path, 'w') as maf_out:
+        for aln in AlignIO.parse(xmfa_path, "mauve"):
+            for rec_idx, rec in enumerate(aln):
+                aln_len = rec.annotations["end"] - rec.annotations["start"]
+                cluster_idx, contig_idx, startpos = [int(x) for x in seqid_pattern.match(rec.id).groups()]
+                fname = idx_to_fname[rec.name]
+                if rec_idx == 0:
+                    maf_out.write(f"a cluster={cluster_idx}\n")
+                elif fname == ref_fname:
+                    continue
+                rec_info = fname_to_info[fname][contig_idx-1]
+                maf_out.write(f"s\t{'.'.join(fname.split('.')[:-1])}{sample_delim}{rec_info.cid}")
+                maf_out.write(f"\t{startpos}")
+                maf_out.write(f"\t{aln_len}")
+                maf_out.write(f"\t{'+' if rec.annotations['strand'] == 1 else '-'}")
+                maf_out.write(f"\t{rec_info.seq_length}")
+                maf_out.write(f"\t{rec.seq}\n")
+            maf_out.write("\n")
+    return
 
 #TODO Merge run fns
 def run_phipack(query,seqlen,workingdir):
@@ -487,6 +535,10 @@ def parse_args():
         "--vcf",
         action = "store_true",
         help = "Generate VCF file.")
+    misc_args.add_argument(
+        "--no-maf",
+        action = "store_true",
+        help = "Do not generage MAF file (XMFA only)")
     misc_args.add_argument(
         "-p",
         "--threads",
@@ -893,6 +945,7 @@ def parse_input_files(input_files, curated, validate_input):
     '''
     # global ff, hdr, seq
     fnafiles = []
+    fname_to_info = defaultdict(list)
     for input_file in input_files[:]:
         # If biopython cannot parse the input as a fasta, kick it out of the list and move on:
         if validate_input:
@@ -1242,9 +1295,7 @@ SETTINGS:
         # fnafiles.remove(ref)
 
     #sort reference by largest replicon to smallest
-    if ref in fnafiles:
-        fnafiles = [f for f in fnafiles if f != ref]
-    elif sortem and os.path.exists(ref) and not autopick_ref:
+    if sortem and os.path.exists(ref) and not autopick_ref:
         sequences = SeqIO.parse(ref, "fasta")
         new_ref = os.path.join(outputDir, os.path.basename(ref)+".ref")
         SeqIO.write(sequences, new_ref, "fasta")
@@ -1704,6 +1755,12 @@ SETTINGS:
         with open(extended_parsnp_xmfa, 'a') as out_f:
             for lcb in new_lcbs:
                 partition.write_aln_to_xmfa(lcb, out_f)
+
+
+    # Generate MAF file
+    if not args.no_maf:
+        logger.debug(f"Writing MAF file to {Path(parsnp_output).with_suffix('.maf')}")
+        xmfa_to_maf(parsnp_output, Path(parsnp_output).with_suffix(".maf"), finalfiles + [ref])
 
     #add genbank here, if present
     if len(genbank_ref) != 0:
