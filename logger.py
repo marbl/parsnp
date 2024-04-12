@@ -15,7 +15,7 @@ RESET_SEQ = "\033[0m"
 COLOR_SEQ = "\033[1;%dm"
 BOLD_SEQ = "\033[1m"
 
-MIN_TQDM_INTERVAL=30
+MIN_TQDM_INTERVAL=5
 
 
 # Logging redirect copied from https://stackoverflow.com/questions/14897756/python-progress-bar-through-logging-module
