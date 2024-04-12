@@ -25,7 +25,7 @@ from pathlib import Path
 import extend as ext
 from tqdm import tqdm
 
-__version__ = "2.0.4"
+__version__ = "2.0.5"
 reroot_tree = True #use --midpoint-reroot
 random_seeded = random.Random(42)
 
