@@ -1774,9 +1774,9 @@ SETTINGS:
     # Harvest seems to fail sometimes when piping to stderr/stdout...
     run_command(command)
 
-    if run_recomb_filter and not args.partition:
+    if run_recomb_filter:
         command = "harvesttools -q -b %s/parsnp.rec,REC,\"PhiPack\" -o %s/parsnp.ggr -i %s/parsnp.ggr"%(outputDir,outputDir,outputDir)
-        run_logged_command(command, outputDir, label="recomb-filter")
+        run_command(command)
 
     run_logged_command(
         f"harvesttools -i {outputDir}/parsnp.ggr -S {outputDir}/parsnp.snps.mblocks",
