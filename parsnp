@@ -144,13 +144,13 @@ signal.signal(signal.SIGINT, handler)
 def xmfa_to_maf(xmfa_path, maf_path, all_input_paths):
     sample_delim = '#'
     SeqInfo = namedtuple("SeqInfo", "cid seq_length")
-    hdr_block_pattern = re.compile("##SequenceIndex (\d+)\n##SequenceFile (.+)\n##SequenceHeader >\s*(\S+).*\n##SequenceLength (\d+)bp")
+    hdr_block_pattern = re.compile(r"##SequenceIndex (\d+)\n##SequenceFile (.+)\n##SequenceHeader >\s*(\S+).*\n##SequenceLength (\d+)bp")
     idx_to_fname = {}
     ref_fname = ""
     with open(xmfa_path) as xmfa_in:
         next(xmfa_in) # skip version
         line = next(xmfa_in)
-        seq_count = int(re.match("#SequenceCount (\d+)\n", line).groups()[0])
+        seq_count = int(re.match(r"#SequenceCount (\d+)\n", line).groups()[0])
         for i in range(seq_count):
             info_block = ""
             for _ in range(4):
