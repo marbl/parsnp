@@ -913,18 +913,35 @@ def make_genome_and_reference_output_strings(ref, genbank_files):
     return sortem, ref_string, genome_string, ref
 
 
+def readfa(fp):
+    """
+    Fasta parser taken from readfq
+    """
+    last = None # this is a buffer keeping the last unprocessed line
+    while True: # mimic closure; is it a bad idea?
+        if not last: # the first record or a record following a fastq
+            for l in fp: # search for the start of the next record
+                if l[0] == '>': # fasta header line
+                    last = l[:-1] # save this line
+                    break
+        if not last: break
+        name, seqs, last = last[1:].partition(" ")[0], [], None
+        for l in fp: # read the sequence
+            if l[0] in '>':
+                last = l[:-1]
+                break
+            seqs.append(l[:-1])
+
+        yield name, ''.join(seqs) # yield a fasta record
+        if not last: break
+
 def check_ref_genome_aligned(ref):
-    # global ff, hdr, seq, line, reflen
+    reflen = 0
     with open(ref, 'r') as ff:
-        hdr = ff.readline()
-        seq = ff.read()
-        if hdr[0] != ">":
-            logger.critical("Reference {} has improperly formatted header.".format(ref))
-            sys.exit(1)
-        for line in seq.split('\n'):
-            if '-' in line and line[0] != ">":
-                logger.warning("Reference genome sequence %s has '-' in the sequence!" % ((ref)))
-        reflen = len(seq) - seq.count('\n')
+        for hdr, seq in readfa(ff):
+            if '-' in seq:
+                logger.warning(f"Reference genome sequence {hdr} in {ref} has '-' in the sequence!")
+            reflen += len(seq)
 
     return reflen
 
@@ -962,22 +979,18 @@ def parse_input_files(input_files, curated, validate_input):
 
         # Old version of the parser:
         with open(input_file, 'r') as ff:
-            hdr = ff.readline()
-            seq = ff.read()
-            name_flag = True
-            seqlen = len(seq) - seq.count('\n')
-            if hdr[0] != ">":
-                logger.error("{} has improperly formatted header. Skip!".format(input_file))
+            concat_seq = ""
+            for hdr, seq in readfa(ff):
+                concat_seq += seq
+
+            seqlen = len(concat_seq)
+            if '-' in concat_seq:
+                logger.error("Genome sequence %s seems to be aligned! Skip!" % ((input_file)))
                 continue
-            elif '-' in seq:
-                seq = seq.split('\n')
-                if any('-' in l and ('>' not in l) for l in seq):
-                    logger.error("Genome sequence %s seems to be aligned! Skip!" % ((input_file)))
-                    continue
             elif seqlen <= 20:
                 logger.error("File %s is less than or equal to 20bp in length. Skip!" % (input_file))
                 continue
-            sizediff = float(reflen) / float(seqlen)
+            sizediff = float(reflen) / seqlen
 
             # Argument for ignoring any issues with the input/references:
             if curated:
@@ -1296,31 +1309,15 @@ SETTINGS:
 
     #sort reference by largest replicon to smallest
     if sortem and os.path.exists(ref) and not autopick_ref:
-        sequences = SeqIO.parse(ref, "fasta")
+        with open(ref, 'r') as ff:
+            seq_dict = {hdr: seq for hdr, seq in readfa(ff)}
+        seqs_sorted_by_len = sorted(seq_dict.items(), key=lambda kv: -len(kv[1]))
         new_ref = os.path.join(outputDir, os.path.basename(ref)+".ref")
-        SeqIO.write(sequences, new_ref, "fasta")
+        with open(new_ref, 'w') as ffo:
+            for hdr, seq in seqs_sorted_by_len:
+                ffo.write(f">{hdr}\n")
+                ffo.write(f"{seq}\n")
         ref = new_ref
-        # logger.debug("Sorting reference replicons")
-        # ff = open(ref, 'r')
-        # seqs = ff.read().split(">")[1:]
-        # seq_dict = {}
-        # seq_len = {}
-        # for seq in seqs:
-            # try:
-                # hdr, seq = seq.split("\n",1)
-            # except ValueError:
-                # # TODO Why do we ignore when theres a header but no sequence?
-                # continue
-            # seq_dict[hdr] = seq
-            # seq_len[hdr] = len(seq) - seq.count('\n')
-        # seq_len_sort = sorted(iter(seq_len.items()), key=operator.itemgetter(1), reverse=True)
-        # ref = os.path.join(outputDir, os.path.basename(ref)+".ref")
-        # ffo = open(ref, 'w')
-        # for hdr, seq in seq_len_sort:
-            # ffo.write(">%s\n"%(hdr))
-            # ffo.write("%s"%(seq_dict[hdr]))
-        # ff.close()
-        # ffo.close()
     else:
         ref = genbank_ref
 
@@ -1479,27 +1476,17 @@ SETTINGS:
     # More stuff to autopick the reference if needed:
     orig_auto_ref = auto_ref
     if os.path.exists(auto_ref) and autopick_ref:
-        #TODO This code block is duplicated
-        ff = open(auto_ref, 'r')
-        seqs = ff.read().split(">")[1:]
         seq_dict = {}
         seq_len = {}
-        for seq in seqs:
-            try:
-                hdr, seq = seq.split("\n",1)
-            except ValueError:
-                continue
-            seq_dict[hdr] = seq
-            seq_len[hdr] = len(seq) - seq.count('\n')
-        seq_len_sort = sorted(seq_len.iteritems(), key=operator.itemgetter(1))
-        seq_len_sort.reverse()
+        with open(auto_ref, 'r') as ff:
+            seq_dict = {hdr: seq for hdr, seq in readfa(ff)}
+
+        seqs_sorted_by_len = sorted(seq_dict.items(), key=lambda kv: -len(kv[1]))
         auto_ref = os.path.join(outputDir, os.path.basename(auto_ref)+".ref")
-        ffo = open(ref, 'w')
-        for item in seq_len_sort:
-            ffo.write(">%s\n"%(item[0]))
-            ffo.write(seq_dict[item[0]])
-        ff.close()
-        ffo.close()
+        with open(ref, 'w') as ffo:
+            for hdr, seq in seqs_sorted_by_len:
+                ffo.write(f">{hdr}\n")
+                ffo.write(f"{seq}\n")
         ref = auto_ref
 
     finalfiles = sorted(finalfiles)
