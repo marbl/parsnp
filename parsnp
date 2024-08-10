@@ -22,7 +22,6 @@ from glob import glob
 from pathlib import Path
 
 
-import extend as ext
 from tqdm import tqdm
 
 __version__ = "2.0.5"
