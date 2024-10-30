@@ -320,6 +320,11 @@ def parse_args():
         action = "store_true",
         help = "(c)urated genome directory, use all genomes in dir and ignore MUMi?")
     input_output_args.add_argument(
+        "--skip-ANI-filter",
+        action = "store_true",
+        help="Skip the filtering step which discards inputs based on the ANI/MUMi distance to the reference." 
+            +"\nUnlike --curated, this will still filter inputs based on their length compared to the reference")
+    input_output_args.add_argument(
         "-d",
         "--sequences",
         type = str,
@@ -567,9 +572,6 @@ def parse_args():
     misc_args.add_argument(
         "-e",
         "--extend",
-        action = "store_true")
-    misc_args.add_argument(
-        "--no-recruit",
         action = "store_true")
     misc_args.add_argument(
         "-V",
@@ -1001,12 +1003,12 @@ def parse_input_files(input_files, curated, validate_input):
             if sizediff <= 0.8:
                 log_f("File {} is {:.2f}x longer than reference! {}".format(
                     input_file, 1 / sizediff, msg))
-                if not curated or args.no_recruit:
+                if not curated:
                     continue
             elif sizediff >= 1.2:
                 log_f("File {} is {:.2f}x shorter than reference genome! {}".format(
                     input_file, sizediff, msg))
-                if not curated or args.no_recruit:
+                if not curated:
                     continue
             fnafiles.append(input_file)
             fnaf_sizes[input_file] = seqlen
@@ -1344,7 +1346,7 @@ SETTINGS:
     mumi_dict = {}
     finalfiles = []
     auto_ref = ""
-    if not curated:
+    if not curated and not args.skip_ANI_filter:
         logger.info("Recruiting genomes...")
         if use_parsnp_mumi:
             if not inifile_exists:
@@ -1396,7 +1398,7 @@ SETTINGS:
                 hpv = minv + (3*stdv)
 
             for idx in mumi_dict.keys():
-                if mumi_dict[idx] < (float(mumidistance)) or curated:
+                if mumi_dict[idx] < (float(mumidistance)):
                     if fastmum and mumi_dict[idx] > hpv:
                         continue
                     #TODO if 1, why is this?
@@ -1465,7 +1467,7 @@ SETTINGS:
             allfiles.extend(finalfiles)
 
     # If "curateD" then anything that was removed gets added back.
-    if curated:
+    if curated or args.skip_ANI_filter:
         for f in fnafiles:
             if f not in finalfiles:
                 finalfiles.append(f)
