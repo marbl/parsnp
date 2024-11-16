@@ -5,9 +5,11 @@ import re
 import bisect
 import tempfile
 import os
+import shutil
 import copy
 import math
 import logging
+from pathlib import Path
 from multiprocessing import Pool
 from functools import partial
 from collections import namedtuple, defaultdict, Counter
@@ -230,9 +232,9 @@ def copy_header(orig_xmfa: str, new_xmfa: str) -> None:
                 break
 
 
-def write_aln_to_xmfa(aln: MultipleSeqAlignment, out_handle: TextIO) -> None:
+def write_aln_to_fna(aln: MultipleSeqAlignment, out_handle: TextIO) -> None:
     """
-    Write the MultipleSeqAlignment to the output handle in xmfa format.
+    Write the MultipleSeqAlignment to the output handle in fna format.
     
     Args:
         aln :        MultipleSeqAlignment
@@ -244,8 +246,6 @@ def write_aln_to_xmfa(aln: MultipleSeqAlignment, out_handle: TextIO) -> None:
         out_handle.write(header)
         for i in range(math.ceil(len(rec.seq) / LINESIZE)):
             out_handle.write(str(rec.seq[i*LINESIZE:(i+1)*LINESIZE]) + "\n")
-    out_handle.write("=\n")
-
 
 
 def combine_header_info(xmfa_list: List[str]) \
@@ -609,7 +609,8 @@ def trim_single_xmfa(
             new_alns = trim(aln, intersected_interval_dict, seqidx=1, cluster_start=cluster_start)
             cluster_start += len(new_alns)
             for new_aln in new_alns:
-                write_aln_to_xmfa(new_aln, trimmed_out)
+                write_aln_to_fna(new_aln, trimmed_out)
+                trimmed_out.write("=\n")
     
     num_clusters = cluster_start - 1
     return (xmfa_file, num_clusters)
@@ -668,7 +669,7 @@ def merge_single_LCB(
     tmp_xmfa = f"{tmp_directory}/cluster-{cluster_idx}.temp" 
     with open(tmp_xmfa, 'w') as xmfa_out_handle:
         new_aln = merge_blocks(aln_xmfa_pairs, fidx_to_new_idx)
-        write_aln_to_xmfa(new_aln, xmfa_out_handle)
+        write_aln_to_fna(new_aln, xmfa_out_handle)
     return tmp_xmfa
 
 
@@ -680,11 +681,12 @@ def merge_single_LCB_star(idx_pairs_tuple, tmp_directory, fidx_to_new_idx):
 
 
 def merge_xmfas(
+    output_dir: str,
     partition_output_dir: str, 
     chunk_labels: List[str], 
-    xmfa_out_f: str, 
     num_clusters: int, 
-    threads: int=1) -> None:
+    threads: int=1,
+    write_blocks: bool=False) -> None:
     """
     Take all of the trimmed XMFA files and compile them into a single XMFA
 
@@ -696,6 +698,7 @@ def merge_xmfas(
         threads:                Number of threads to use.
     """
 
+    xmfa_out_f = f"{output_dir}/parsnp.xmfa" 
     xmfa_files = [f"{partition_output_dir}/{CHUNK_PREFIX}-{cl}-out/parsnp.xmfa.trimmed"
                   for cl in chunk_labels]
     seq_to_idx, fidx_to_new_idx = combine_header_info(xmfa_files)
@@ -727,5 +730,8 @@ def merge_xmfas(
                 tmp_xmfa = f"{tmp_directory}/cluster-{cluster_idx}.temp" 
                 with open(tmp_xmfa) as tx:
                     xmfa_out_handle.write(tx.read())
+                if write_blocks:
+                    Path(f"{output_dir}/blocks/b{cluster_idx}").mkdir(parents=True)
+                    shutil.move(tmp_xmfa, f"{output_dir}/blocks/b{cluster_idx}/seq.fna")
 
 
