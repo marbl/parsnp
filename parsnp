@@ -542,6 +542,11 @@ def parse_args():
         default = 1,
         help = "Number of threads to use")
     misc_args.add_argument(
+        "--force-overwrite",
+        "--fo",
+        action="store_true",
+        help="Overwrites any results in the output directory if it already exists")
+    misc_args.add_argument(
         "-P",
         "--max-partition-size",
         type = int,
@@ -713,7 +718,7 @@ def check_for_dependencies(use_phipack, use_fasttree):
         sys.exit(1)
 
 
-def create_output_directory(output_dir):
+def create_output_directory(output_dir, overwrite=False):
     '''
     Function to make the output directory and the 'tmp' subdirectory based on the command-line arguments.
 
@@ -728,13 +733,13 @@ def create_output_directory(output_dir):
         sys.exit(1)
 
     if os.path.exists(output_dir):
-        logger.warning(f"Output directory {output_dir} exists, all results will be overwritten")
-        if os.path.exists(output_dir + "/partition"):
-            shutil.rmtree(output_dir + "/partition/")
-        if os.path.exists(output_dir + "/config/"):
-            shutil.rmtree(output_dir + "/config/")
-        if os.path.exists(output_dir + "/log/"):
-            shutil.rmtree(output_dir + "/log/")
+        if overwrite:
+            logger.warning(f"Output directory {output_dir} exists, all results will be overwritten")
+            shutil.rmtree(output_dir)
+        else:
+            logger.critical(f"Output directory {output_dir} exists. Use --fo/--force-overwrite to automatically overwrite it")
+            sys.exit(1)
+
     elif output_dir == "[P_CURRDATE_CURRTIME]":
         today = datetime.datetime.now()
         timestamp = "P_" + today.isoformat().replace("-", "_").replace(".", "").replace(":", "").replace("T", "_")
@@ -1220,7 +1225,7 @@ if __name__ == "__main__":
     check_for_dependencies(recomb_filter, use_fasttree)
 
     # 3) Create output dir
-    outputDir = create_output_directory(outputDir)
+    outputDir = create_output_directory(outputDir, args.force_overwrite)
 
     # 4) Process all input files:
     #   -- 'input_files' here is args.sequences
