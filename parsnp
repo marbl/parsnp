@@ -1144,7 +1144,7 @@ def run_parsnp_aligner(outputDir):
     rc = run_logged_command(command=command, ignorerc=1, label="parsnp-aligner", outputDir=outputDir)
 
     if not os.path.exists(os.path.join(outputDir, "parsnpAligner.xmfa")) or rc != 0:
-        logger.critical("Set of recruited genomes are too divergent for parsnp, please reduce MUMi (%f) and relaunch\n"%(float(mumidistance)))
+        logger.critical("Set of recruited genomes are too divergent for parsnp, please use stricter ANI thresholds for recruitment")
     else:
         shutil.move(
                 os.path.join(outputDir, "parsnpAligner.xmfa"),
