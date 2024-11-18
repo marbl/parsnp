@@ -1230,6 +1230,16 @@ if __name__ == "__main__":
     # 4) Process all input files:
     #   -- 'input_files' here is args.sequences
     input_files = process_input_files(args, input_files)
+    if len(set(Path(p).stem for p in input_files)) < len(input_files):
+        logger.critical("Multiple files have the same file stem, i.e. path1/genomic.fna and path2/genomic.fna. Please ensure unique filenames.")
+        logger.critical("""If the directory names are unique, but not the filenames (for example if they all come from NCBI Datasets, you can use the following to rename them:
+for f in path/to/files/*/*.fna; do
+	DIR=$(dirname $f)
+	DIR_ONLY="${DIR##*/}"
+	mv $f "${DIR}/${DIR_ONLY}.fna"
+done;
+""")
+        exit(1)
 
     # Parse reference if necessary
     multifasta, ref_seqs = parse_reference_file(ref)
