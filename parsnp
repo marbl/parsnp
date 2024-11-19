@@ -1349,7 +1349,7 @@ SETTINGS:
     finalfiles = []
     auto_ref = ""
     if not curated and not args.skip_ANI_filter:
-        logger.info("Recruiting genomes...")
+        logger.info("Filtering genomes...")
         if use_parsnp_mumi:
             if not inifile_exists:
                 command = f"{PARSNP_DIR}/bin/parsnp_core {outputDir}/config/all_mumi.ini"
@@ -1464,7 +1464,7 @@ SETTINGS:
                 # shutil.rmtree(tmp_dir)
             except subprocess.CalledProcessError as e:
                 logger.critical(
-                    "Recruitment failed with exception {}. More details may be found in the *.err output log".format(str(e)))
+                    "Filtering failed with exception {}. More details may be found in the *.err output log".format(str(e)))
                 # shutil.rmtree(tmp_dir)
             allfiles.extend(finalfiles)
 
