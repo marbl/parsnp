@@ -730,6 +730,7 @@ def merge_xmfas(
                 tmp_xmfa = f"{tmp_directory}/cluster-{cluster_idx}.temp" 
                 with open(tmp_xmfa) as tx:
                     xmfa_out_handle.write(tx.read())
+                    xmfa_out_handle.write("=\n")
                 if write_blocks:
                     Path(f"{output_dir}/blocks/b{cluster_idx}").mkdir(parents=True)
                     shutil.move(tmp_xmfa, f"{output_dir}/blocks/b{cluster_idx}/seq.fna")
