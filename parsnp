@@ -315,15 +315,11 @@ def parse_args():
     #TODO Use lambda to check files and directories
     input_output_args = parser.add_argument_group(title="Input/Output")
     input_output_args.add_argument(
-        "-c",
-        "--curated",
-        action = "store_true",
-        help = "(c)urated genome directory, use all genomes in dir and ignore MUMi?")
-    input_output_args.add_argument(
-        "--skip-ANI-filter",
-        action = "store_true",
-        help="Skip the filtering step which discards inputs based on the ANI/MUMi distance to the reference." 
-            +"\nUnlike --curated, this will still filter inputs based on their length compared to the reference")
+        "-r",
+        "--reference",
+        type = lambda fname: is_valid_file_path(parser, fname),
+        default = "",
+        help = "(r)eference genome (set to ! to pick random one from sequence dir)")
     input_output_args.add_argument(
         "-d",
         "--sequences",
@@ -331,13 +327,6 @@ def parse_args():
         nargs = '+',
         required = True,
         help = "A list of files containing genomes/contigs/scaffolds. If the file ends in .txt, each line in the file corresponds to the path to an input file.")
-    input_output_args.add_argument(
-        "-r",
-        "--reference",
-        type = lambda fname: is_valid_file_path(parser, fname),
-        default = "",
-        help = "(r)eference genome (set to ! to pick random one from sequence dir)")
-    #TODO Accept as space-separated input and parse automatically w/ argparse
     input_output_args.add_argument(
         "-g",
         "--genbank",
@@ -348,6 +337,16 @@ def parse_args():
         "--output-dir",
         type = str,
         default = "[P_CURRDATE_CURRTIME]")
+    input_output_args.add_argument(
+        "-c",
+        "--curated",
+        action = "store_true",
+        help = "(c)urated genome directory, use all genomes in dir and ignore MUMi?")
+    input_output_args.add_argument(
+        "--skip-ANI-filter",
+        action = "store_true",
+        help="Skip the filtering step which discards inputs based on the ANI/MUMi distance to the reference." 
+            +"\nUnlike --curated, this will still filter inputs based on their length compared to the reference")
     input_output_args.add_argument(
         "-q",
         "--query",
