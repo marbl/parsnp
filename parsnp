@@ -347,7 +347,7 @@ def parse_args():
         action = "store_true",
         help = "(c)urated genome directory, use all genomes in dir and ignore MUMi.")
     MUMi_args.add_argument(
-        "--skip-ANI-filter",
+        "--skip-ani-filter",
         action = "store_true",
         help="Skip the filtering step which discards inputs based on the ANI/MUMi distance to the reference." 
             +"\nUnlike --curated, this will still filter inputs based on their length compared to the reference")
