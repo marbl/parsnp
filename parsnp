@@ -556,6 +556,7 @@ def parse_args():
     misc_args.add_argument(
         "-x",
         "--recomb-filter",
+        "--xtrafast",
         action = "store_true",
         help="Run recombination filter (phipack)")
     misc_args.add_argument(
@@ -1348,7 +1349,7 @@ SETTINGS:
     mumi_dict = {}
     finalfiles = []
     auto_ref = ""
-    if not curated and not args.skip_ANI_filter:
+    if not curated and not args.skip_ani_filter:
         logger.info("Filtering genomes...")
         if use_parsnp_mumi:
             if not inifile_exists:
@@ -1469,7 +1470,7 @@ SETTINGS:
             allfiles.extend(finalfiles)
 
     # If "curateD" then anything that was removed gets added back.
-    if curated or args.skip_ANI_filter:
+    if curated or args.skip_ani_filter:
         for f in fnafiles:
             if f not in finalfiles:
                 finalfiles.append(f)
