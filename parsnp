@@ -308,9 +308,6 @@ def parse_args():
 
     2) With reference but without genbank file:
     python Parsnp.py -r <reference_genome> -d <seq_file1 seq_file2 ...> -p <threads>
-
-    3) Autorecruit reference to a draft assembly:
-    python Parsnp.py -q <draft_assembly> -d <seq_file1 seq_file2 ...> -p <threads>
     """, formatter_class=argparse.RawTextHelpFormatter)
     #TODO Use lambda to check files and directories
     input_output_args = parser.add_argument_group(title="Input/Output")
@@ -338,22 +335,22 @@ def parse_args():
         type = str,
         default = "[P_CURRDATE_CURRTIME]")
     input_output_args.add_argument(
-        "-c",
-        "--curated",
-        action = "store_true",
-        help = "(c)urated genome directory, use all genomes in dir and ignore MUMi?")
-    input_output_args.add_argument(
-        "--skip-ANI-filter",
-        action = "store_true",
-        help="Skip the filtering step which discards inputs based on the ANI/MUMi distance to the reference." 
-            +"\nUnlike --curated, this will still filter inputs based on their length compared to the reference")
-    input_output_args.add_argument(
         "-q",
         "--query",
         type = str,
         help = "Specify (assembled) query genome to use, in addition to genomes found in genome dir")
 
-    MUMi_args = parser.add_argument_group(title="MUMi")
+    MUMi_args = parser.add_argument_group(title="Filtering")
+    MUMi_args.add_argument(
+        "-c",
+        "--curated",
+        action = "store_true",
+        help = "(c)urated genome directory, use all genomes in dir and ignore MUMi.")
+    MUMi_args.add_argument(
+        "--skip-ANI-filter",
+        action = "store_true",
+        help="Skip the filtering step which discards inputs based on the ANI/MUMi distance to the reference." 
+            +"\nUnlike --curated, this will still filter inputs based on their length compared to the reference")
     MUMi_mutex_args = MUMi_args.add_mutually_exclusive_group()
     #TODO whats the default?
     MUMi_mutex_args.add_argument(
@@ -389,12 +386,12 @@ def parse_args():
     MUMi_rec_prog.add_argument(
         "--use-ani",
         action = "store_true",
-        help = "Use ani for genome recruitment")
+        help = "Use ANI for genome filtering")
     MUMi_args.add_argument(
         "--min-ani",
         type = float,
         default = 95,
-        help = "Min ANI value to allow for genome recruitment.")
+        help = "Min ANI value required to include genome")
     MUMi_args.add_argument(
         "--min-ref-cov",
         type = float,
@@ -403,7 +400,7 @@ def parse_args():
     MUMi_rec_prog.add_argument(
         "--use-mash",
         action = "store_true",
-        help = "Use mash for genome recruitment")
+        help = "Use mash for genome filtering")
     MUMi_args.add_argument(
         "--max-mash-dist",
         type = float,
@@ -1143,7 +1140,7 @@ def run_parsnp_aligner(outputDir):
     rc = run_logged_command(command=command, ignorerc=1, label="parsnp-aligner", outputDir=outputDir)
 
     if not os.path.exists(os.path.join(outputDir, "parsnpAligner.xmfa")) or rc != 0:
-        logger.critical("Set of recruited genomes are too divergent for parsnp, please use stricter ANI thresholds for recruitment")
+        logger.critical("Set of filtered genomes are too divergent for parsnp, please use stricter ANI thresholds for filtering")
     else:
         shutil.move(
                 os.path.join(outputDir, "parsnpAligner.xmfa"),
@@ -1424,7 +1421,7 @@ SETTINGS:
                     all_genomes_f.writelines((line + '\n' for line in fnafiles))
                 if use_mash:
                     if randomly_selected_ref:
-                        logger.warning("You are using a randomly selected genome to recruit genomes from your input with Mash. If input genomes vary greatly in size, results could be suboptimal. It is advised to select a reference genome for recruitment...")
+                        logger.warning("You are using a randomly selected genome to filter genomes from your input with Mash. If input genomes vary greatly in size, results could be suboptimal. It is advised to select a reference genome for filter...")
                     command = " ".join([
                             "mash", "dist", "-t",
                             "-d", str(max_mash_dist),
@@ -1441,7 +1438,7 @@ SETTINGS:
                         3000, 
                         max(500, reflen // 100))
                     if randomly_selected_ref:
-                        logger.warning("You have not selected a reference and are using ANI recruitment. All-to-all FastANI will be performed in order to obtain the best reference. As this is O(N^2), it is advised to select a reference genome if you have many query sequences.")
+                        logger.warning("You have not selected a reference and are using ANI filter. All-to-all FastANI will be performed in order to obtain the best reference. As this is O(N^2), it is advised to select a reference genome if you have many query sequences.")
                     command = " ".join([
                             "fastANI",
                             ("--rl" if randomly_selected_ref else "-r"), 
@@ -1535,7 +1532,7 @@ SETTINGS:
                 sys.exit(1)
             else:
                 logger.warning("""Aligned regions cover less than 10% of reference genome!
-    Please verify recruited genomes are all strain of interest""")
+    Please verify filtered genomes are all strain of interest""")
         else:
             pass
 
