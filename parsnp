@@ -180,6 +180,8 @@ def xmfa_to_maf(xmfa_path, maf_path, all_input_paths):
                 elif fname == ref_fname:
                     continue
                 rec_info = fname_to_info[fname][contig_idx-1]
+                if rec.annotations["strand"] == -1:
+                    startpos = rec_info.seq_length - startpos
                 maf_out.write(f"s\t{'.'.join(fname.split('.')[:-1])}{sample_delim}{rec_info.cid}")
                 maf_out.write(f"\t{startpos}")
                 maf_out.write(f"\t{aln_len}")
