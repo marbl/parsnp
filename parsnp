@@ -170,6 +170,7 @@ def xmfa_to_maf(xmfa_path, maf_path, all_input_paths):
 
     seqid_pattern = re.compile(r'^cluster(\d+) s(\d+):p(\d+)')
     with open(maf_path, 'w') as maf_out:
+        maf_out.write("##maf version=1 program=parsnp\n")
         for aln in AlignIO.parse(xmfa_path, "mauve"):
             for rec_idx, rec in enumerate(aln):
                 aln_len = rec.annotations["end"] - rec.annotations["start"]
