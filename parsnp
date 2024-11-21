@@ -6,7 +6,7 @@
 '''
 
 import os, sys, string, random, subprocess, time, operator, math, datetime, numpy #pysam
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, Counter
 import shutil
 import multiprocessing
 import shlex
@@ -1230,8 +1230,12 @@ if __name__ == "__main__":
     # 4) Process all input files:
     #   -- 'input_files' here is args.sequences
     input_files = process_input_files(args, input_files)
-    if len(set(Path(p).stem for p in input_files)) < len(input_files):
+    input_file_counter = Counter(Path(p).stem for p in input_files)
+    if len(input_file_counter) < len(input_files):
         logger.critical("Multiple files have the same file stem, i.e. path1/genomic.fna and path2/genomic.fna. Please ensure unique filenames.")
+        for p in sorted(input_files, key=lambda p: Path(p).stem):
+            if input_file_counter[Path(p).stem] > 1:
+                logger.debug(p)
         logger.critical("""If the directory names are unique, but not the filenames (for example if they all come from NCBI Datasets, you can use the following to rename them:
 for f in path/to/files/*/*.fna; do
 	DIR=$(dirname $f)
@@ -1747,7 +1751,8 @@ SETTINGS:
         partition.copy_header(orig_parsnp_xmfa, extended_parsnp_xmfa)
         with open(extended_parsnp_xmfa, 'a') as out_f:
             for lcb in new_lcbs:
-                partition.write_aln_to_xmfa(lcb, out_f)
+                partition.write_aln_to_fna(lcb, out_f)
+                out_f.write("=\n")
 
 
     # Generate MAF file
