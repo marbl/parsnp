@@ -582,7 +582,7 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
         if(ct.type==1)
             total_clusters++;
     }
-    xmfafile << "#FormatVersion Parsnp v1.1" << endl;
+    xmfafile << "#FormatVersion Mauve" << endl;
     xmfafile << "#SequenceCount " << nnum << endl;
     for (int zz = 0; zz < nnum; zz++)
     {
