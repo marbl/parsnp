@@ -1235,7 +1235,7 @@ if __name__ == "__main__":
         logger.critical("Multiple files have the same file stem, i.e. path1/genomic.fna and path2/genomic.fna. Please ensure unique filenames.")
         for p in sorted(input_files, key=lambda p: Path(p).stem):
             if input_file_counter[Path(p).stem] > 1:
-                logger.debug(p)
+                logger.critical(p)
         logger.critical("""If the directory names are unique, but not the filenames (for example if they all come from NCBI Datasets, you can use the following to rename them:
 for f in path/to/files/*/*.fna; do
 	DIR=$(dirname $f)
