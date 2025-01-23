@@ -10,6 +10,14 @@ Once you have [added the Bioconda channel](https://bioconda.github.io/#usage) to
 conda install -c bioconda parsnp
 ```
 
+If you run into conflicts, even in a fresh environment, that may be due to the versions of the 
+default dependencies in the env. You can get around this by letting conda figure out
+which versions of the dependencies are necessary by telling it which packages you want at 
+creation:
+```
+conda create -n parsnp-env parsnp==2.*
+```
+
 Instructions for building Parsnp from source are available towards the end of this README.
 
 # Running Parsnp
