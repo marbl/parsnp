@@ -1782,10 +1782,8 @@ SETTINGS:
         label="harvest-mblocks")
 
     if generate_vcf:
-        if multifasta:
-            logger.warning("VCF coordinates for multifasta reference are relative to an internal representation of concatenated contigs. We aim to support multifasta reference coordinates in a future release.")
         run_logged_command(
-            f"harvesttools -q -x {parsnp_output} -V {outputDir+os.sep}parsnp.vcf", 
+            f"harvesttools -q -i {outputDir}/parsnp.ggr -V {outputDir+os.sep}parsnp.vcf", 
             outputDir, label="harvest-vcf")
 
     if not args.skip_phylogeny:
