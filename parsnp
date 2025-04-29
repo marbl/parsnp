@@ -1785,6 +1785,11 @@ SETTINGS:
         run_logged_command(
             f"harvesttools -q -i {outputDir}/parsnp.ggr -V {outputDir+os.sep}parsnp.vcf", 
             outputDir, label="harvest-vcf")
+        with open(f"{outputDir}/parsnp.vcf", 'r') as vcf_orig:
+            vcf_contents = vcf_orig.read()
+        with open(f"{outputDir}/parsnp.vcf", 'w') as vcf_fixed:
+            vcf_fixed.write("##fileformat=VCFv4.2\n")
+            vcf_fixed.write(vcf_contents)
 
     if not args.skip_phylogeny:
         logger.info("Reconstructing core genome phylogeny...")
