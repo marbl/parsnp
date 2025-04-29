@@ -307,7 +307,7 @@ def write_combined_header(
 
     #TODO fix duplicated fidx_to_new_idx
     with open(xmfa_out_f, 'w') as xmfa_out:
-        xmfa_out.write("#FormatVersion Parsnp v1.1\n")
+        xmfa_out.write("#FormatVersion Mauve\n")
         xmfa_out.write(f"#SequenceCount {len(seq_to_idx)}\n")
         for entry in sorted(seq_to_idx.keys(), key=lambda k: seq_to_idx[k]):
             xmfa_out.write(f"##SequenceIndex {seq_to_idx[entry]}\n")
