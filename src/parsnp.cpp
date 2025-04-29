@@ -88,7 +88,7 @@ Aligner::Aligner()
 
 
 // {{{ Aligner::Aligner( vector<string> genomes, vector<string> files, int d, int q,
-Aligner::Aligner( vector<string>& genomes , vector<string>& files, int c, int d, int q, int p, string anchors, \
+Aligner::Aligner( vector<string>& genomes , vector<int>& genome_sizes, vector<string>& files, int c, int d, int q, int p, string anchors, \
                  string mums, bool filter,  vector<char *>& clustalparams,\
 		  vector<string>& fasta, float factor ,bool harsh,vector<float>& gcCount,vector<float>& atCount, bool shustring, int doAlign, bool gridRun, int cores, bool extendmums,map<string, int>& header_to_index, vector < map<int,string> > & pos_to_header, vector<string>& headers, bool calc_mumi, float diag_diff, string prefix, string outdir, bool recomb_filter, bool doUnalign)
 : d(d), q(q),p(p)
@@ -118,6 +118,7 @@ Aligner::Aligner( vector<string>& genomes , vector<string>& files, int c, int d,
     for( vector<string>::iterator it = genomes.begin(); it != genomes.end(); it++)
         this->genomes.push_back(*it);
     genomes.clear();
+    this->genome_sizes = std::move(genome_sizes);
     for( vector<string>::iterator it = files.begin(); it != files.end(); it++)
         this->files.push_back(*it);
     files.clear();
@@ -591,7 +592,7 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
             xmfafile << "##SequenceIndex " << zz+1 << endl;
             xmfafile << "##SequenceFile " << allfasta.at(zz) << endl;
             xmfafile << "##SequenceHeader " << this->headers.at(zz) << endl;
-            xmfafile << "##SequenceLength " << this->genomes.at(zz).size() << "bp" << endl;
+            xmfafile << "##SequenceLength " << this->genome_sizes.at(zz) << "bp" << endl;
         }
     }
     xmfafile << "#IntervalCount " << total_clusters << endl;
@@ -1085,7 +1086,7 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
         {
             log <<  "Sequence "<< i+1 << " : "  << this->files.at(i) << endl;
             log <<  this->fasta.at(i) << endl;
-            log <<  "Length:"<< setw(10) << this->genomes.at(i).size() << " bps" <<endl;
+            log <<  "Length:"<< setw(10) << this->genome_sizes.at(i) << " bps" <<endl;
             log <<  " GC:"<< setw(10) << setiosflags(ios::fixed) << setprecision(1) << this->gcCount.at(i) << endl;
             log <<  " AT:"<< setw(10) << setiosflags(ios::fixed) << setprecision(1) << this->atCount.at(i) << endl;
         }
@@ -1106,7 +1107,7 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
     log << setw(2) << "Number of Clusters filtered:   "<< setw(2) << this->filtered_clusters << endl << endl;
     
     
-    percent = (float)(this->aligned)/(float)(this->genomes.at(0).size());
+    percent = (float)(this->aligned)/(float)(this->genome_sizes.at(0));
     //count number of actual clusters
     long ccount = 0;
     for(vector<Cluster>::iterator ct = this->clusters.begin(); ct != this->clusters.end(); ct++)
@@ -1172,7 +1173,7 @@ void Aligner::writeOutput(string psnp,vector<float>& coveragerow)
             percent = (float)coverage.at(i)/((float)this->gcCount.at(i)+(float)this->atCount.at(i));
             log << setw(2) << "Cluster coverage in sequence " << i+1 <<  ":   " <<  setiosflags(ios::fixed) << setprecision(1) << 100.00 * percent << "%" <<  endl;
             totcoverage += coverage.at(i);
-            totsize += this->genomes.at(i).size();
+            totsize += this->genome_sizes.at(i);
         }
     }
     percent = (float)totcoverage/(float)totsize;
@@ -2795,6 +2796,7 @@ int main ( int argc, char* argv[] )
     // {{{ variables
     //task_scheduler_init init;
     vector<string> genomes,pwgenomes,files,pwfiles,fasta,headers;
+    vector<int> genome_sizes;
     vector<char *> clustalparams;
     vector<bool> mumrow;
     vector< vector<float> > coverages;
@@ -2988,6 +2990,7 @@ int main ( int argc, char* argv[] )
         tloc   = 0;
         ncount = 0;
         nloc = 0;
+        int padding_count = 0;
         
         
         long long counter = 0;
@@ -3111,6 +3114,7 @@ int main ( int argc, char* argv[] )
                     if (i!=0) {
                         genome.append(d+10,'N');
                         ncount += d+10;
+                        padding_count += d+10;
                     } // moved forward by V
 
                     seqcount += 1;
@@ -3135,6 +3139,7 @@ int main ( int argc, char* argv[] )
 
         contig_intervals[i].push_back(ncount+ccount+tcount+acount+gcount);
         genomes.push_back(genome);
+        genome_sizes.push_back(genome.size() - padding_count);
         
         if(1)
         {
@@ -3172,7 +3177,7 @@ int main ( int argc, char* argv[] )
     dif = difftime (end,start);
     printf("        Finished processing input sequences, elapsed time: %.0lf seconds\n\n", dif );
     
-    Aligner align( genomes, files, c, d, q, p, anchors, mums, random, clustalparams, fasta,factor,harsh,gcCount,atCount,shustring,doAlign,gridRun,cores,extendmums, header_to_index,pos_to_header,headers,calc_mumi,diag_diff,prefix,outdir,recomb_filter,doUnalign);
+    Aligner align( genomes, genome_sizes, files, c, d, q, p, anchors, mums, random, clustalparams, fasta,factor,harsh,gcCount,atCount,shustring,doAlign,gridRun,cores,extendmums, header_to_index,pos_to_header,headers,calc_mumi,diag_diff,prefix,outdir,recomb_filter,doUnalign);
     for ( ssize i = 0; i < align.n; i ++ )
     {
         align.mumlayout.push_back(mumrow);
