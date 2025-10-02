@@ -24,7 +24,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-__version__ = "2.1.4"
+__version__ = "2.1.5"
 reroot_tree = True #use --midpoint-reroot
 random_seeded = random.Random(42)
 
@@ -540,6 +540,11 @@ def parse_args():
         type = int,
         default = 1,
         help = "Number of threads to use")
+    misc_args.add_argument(
+        "--max-concurrent-partitions",
+        type = int,
+        default = None,
+        help = "Maximum number of partitions to run in parallel. Unlimited by default")
     misc_args.add_argument(
         "--force-overwrite",
         "--fo",
@@ -1191,6 +1196,7 @@ if __name__ == "__main__":
     curated = args.curated
     aligner = ALIGNER_TO_IDX[args.alignment_program.lower()]
     threads = args.threads
+    max_concurrent_partitions = args.max_concurrent_partitions if args.max_concurrent_partitions else numpy.inf
     unaligned = "0" if not args.unaligned else "1"
     # mincluster = args.min_cluster_size # (using args directly)
     diagdiff = args.max_diagonal_difference
@@ -1507,7 +1513,7 @@ SETTINGS:
     #initiate parallelPhiPack tasks
     #3)run parsnp (cores, grid?)
     if args.no_partition or len(finalfiles) < 2*args.min_partition_size:
-        if len(finalfiles) < 2*args.min_partition_size:
+        if not args.no_partition and len(finalfiles) < 2*args.min_partition_size:
             logger.info(f"Too few genomes to run partitions of size >{args.min_partition_size}. Running all genomes at once.")
         # Editing the ini file to be used for parnsp-aligner (which is different from parsnip as a mumi finder)
         if not inifile_exists:
@@ -1562,6 +1568,9 @@ SETTINGS:
         for partition_list_file in os.listdir(partition_list_dir):
             chunk_labels.append(chunk_label_parser.search(partition_list_file).groups()[0])
 
+        num_partitions = len(chunk_labels)
+        concurrent_partition_count = min(args.threads, max_concurrent_partitions, num_partitions)
+        threads_per_partition = max(1, args.threads // concurrent_partition_count)
         chunk_output_dirs = []
         for cl in chunk_labels:
             chunk_output_dir = f"{partition_output_dir}/{partition.CHUNK_PREFIX}-{cl}-out"
@@ -1571,11 +1580,12 @@ SETTINGS:
             with open(f"{partition_list_dir}/{partition.CHUNK_PREFIX}-{cl}.txt", 'r') as partition_file:
                 partition_seq_files = [f for f in partition_file.read().splitlines()]
 
-            write_inifile_2(inifiled, chunk_output_dir, unaligned, args, auto_ref, query, partition_seq_files, ref, max(1, args.threads // len(chunk_labels)))
+            write_inifile_2(inifiled, chunk_output_dir, unaligned, args, auto_ref, query, partition_seq_files, ref, max(1, threads_per_partition))
 
         logger.info("Running partitions...")
+        logger.debug(f"Number of concurrent partitions is capped at {concurrent_partition_count}, with {threads_per_partition} threads for each partition.")
         good_chunks = set(chunk_labels)
-        with Pool(args.threads) as pool:
+        with Pool(concurrent_partition_count) as pool:
             return_codes = tqdm(
                 pool.imap(run_parsnp_aligner, chunk_output_dirs, chunksize=1), 
                 total=len(chunk_output_dirs), 
