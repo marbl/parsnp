@@ -1510,6 +1510,10 @@ SETTINGS:
     random_seeded.shuffle(finalfiles)
     totseqs = len(finalfiles) + 1 # Add one to include reference
 
+    if totseqs < 4 and not args.skip_phylogeny:
+        logger.info(f"Only {totseqs} sequences in alignment; RAxML requires at least 4. Skipping phylogeny construction.\n")
+        args.skip_phylogeny = True
+
     #initiate parallelPhiPack tasks
     #3)run parsnp (cores, grid?)
     if args.no_partition or len(finalfiles) < 2*args.min_partition_size:
