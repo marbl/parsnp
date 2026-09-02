@@ -1796,10 +1796,16 @@ SETTINGS:
             f"harvesttools -q -i {outputDir}/parsnp.ggr -V {outputDir+os.sep}parsnp.vcf", 
             outputDir, label="harvest-vcf")
         with open(f"{outputDir}/parsnp.vcf", 'r') as vcf_orig:
-            vcf_contents = vcf_orig.read()
-        with open(f"{outputDir}/parsnp.vcf", 'w') as vcf_fixed:
+            vcf_contents = vcf_orig.readlines()
+        with open(f"{outputDir}/parsnp.vcf", "w") as vcf_fixed:
             vcf_fixed.write("##fileformat=VCFv4.2\n")
-            vcf_fixed.write(vcf_contents)
+            for line in vcf_contents:
+                if line.startswith("#"):
+                    vcf_fixed.write(line + "\n")
+                    continue
+                line = line.split('\t')
+                line[6] = line[6].replace(":", ";")
+                vcf_fixed.write('\t'.join(line) + "\n")
 
     if not args.skip_phylogeny:
         logger.info("Reconstructing core genome phylogeny...")
